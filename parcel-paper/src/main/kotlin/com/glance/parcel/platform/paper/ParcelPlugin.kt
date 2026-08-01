@@ -9,6 +9,7 @@ import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.storage.YamlRegionRepository
 import com.glance.parcel.platform.paper.tracking.RegionTracker
+import com.glance.parcel.platform.paper.visual.OutlineRenderer
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
@@ -23,6 +24,7 @@ class ParcelPlugin : JavaPlugin() {
 
     private lateinit var regions: RegionManagerImpl
     private lateinit var tracker: RegionTracker
+    private lateinit var outlines: OutlineRenderer
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -35,8 +37,20 @@ class ParcelPlugin : JavaPlugin() {
 
         server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
 
+        outlines = OutlineRenderer(
+            plugin = this,
+            regions = regions,
+            selections = selections,
+            settings = OutlineRenderer.Settings(
+                intervalTicks = config.getLong("outline.interval-ticks", 4L).coerceAtLeast(1L),
+                range = config.getDouble("outline.range", 48.0),
+                spacing = config.getDouble("outline.spacing", 1.0),
+                maxPoints = config.getInt("outline.max-points", 600),
+            ),
+        )
+
         ParcelCommandManager(this).register(
-            RegionCommands(this, regions, selections),
+            RegionCommands(this, regions, selections, outlines),
             MarqueeCommands(selections),
         )
 
@@ -59,6 +73,7 @@ class ParcelPlugin : JavaPlugin() {
                 }
                 logger.info("Loaded $count region(s)")
                 tracker.start()
+                if (config.getBoolean("outline.enabled", true)) outlines.start()
                 server.pluginManager.callEvent(ParcelReadyEvent(api))
             })
         }
@@ -67,6 +82,9 @@ class ParcelPlugin : JavaPlugin() {
     override fun onDisable() {
         if (::tracker.isInitialized) {
             tracker.stop()
+        }
+        if (::outlines.isInitialized) {
+            outlines.stop()
         }
         if (::regions.isInitialized) {
             // Block briefly on shutdown - losing an unsaved edit is worse than a slow stop.

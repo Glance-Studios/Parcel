@@ -5,3 +5,21 @@ tracking:
   # This is the only recurring cost Parcel adds; raise it if you have very many regions and do not
   # need frame-tight enter/exit events.
   interval-ticks: 5
+
+outline:
+  # Particle outlines of your selection, and of any region you /parcel show.
+  # Sent per player, so guides are never visible to anyone else.
+  enabled: true
+  interval-ticks: 4
+
+  # Only the part of an outline within this many blocks of you is drawn. This is what keeps a
+  # full-height prism affordable - its vertical edges are 384 blocks long and you can only see a
+  # few of that anyway.
+  range: 48.0
+
+  # Distance between particles along an edge. Corners are always drawn.
+  spacing: 1.0
+
+  # Hard ceiling on particles per player per pass, shared across every box being drawn, so a large
+  # selection degrades evenly instead of the first part using the whole budget.
+  max-points: 600

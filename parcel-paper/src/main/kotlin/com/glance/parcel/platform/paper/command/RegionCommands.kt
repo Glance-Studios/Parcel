@@ -3,6 +3,8 @@ package com.glance.parcel.platform.paper.command
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
+import com.glance.parcel.platform.paper.visual.OutlineRenderer
+import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
@@ -24,6 +26,7 @@ internal class RegionCommands(
     private val plugin: Plugin,
     private val regions: RegionManagerImpl,
     private val selections: SelectionManagerImpl,
+    private val outlines: OutlineRenderer,
 ) {
 
     @Suggestions("region-keys")
@@ -39,6 +42,8 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel create <name><gray> - save your selection as a new region")
         Text.raw(sender, "  <aqua>/parcel apply <name><gray> - reshape an existing region to your selection")
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
+        Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
+        Text.raw(sender, "  <aqua>/parcel goto <name><gray> - teleport to it")
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
     }
@@ -198,6 +203,58 @@ internal class RegionCommands(
             return
         }
         Text.send(sender, "<gray>Deleted <aqua>${Keys.display(region.key())}<gray>.")
+    }
+
+    @Command("parcel show <name>")
+    @Permission(VIEW)
+    fun show(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(player, name) ?: return
+
+        val shown = outlines.toggleWatch(player, region)
+        if (!shown) {
+            Text.send(player, "<gray>Hid <aqua>${Keys.display(region.key())}<gray>.")
+            return
+        }
+
+        Text.send(player, "<gray>Showing <aqua>${Keys.display(region.key())}<gray>.")
+        if (region.world() != player.world) {
+            Text.raw(player, "  <yellow>It is in ${region.world().name} - /parcel goto to fly there.")
+        }
+    }
+
+    @Command("parcel goto <name>")
+    @Permission(EDIT)
+    fun goto(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(player, name) ?: return
+        if (region.isEmpty()) {
+            Text.error(player, "${Keys.display(region.key())} has no shape to go to.")
+            return
+        }
+
+        // Above the top face and centred, so you arrive looking at the whole thing rather than
+        // inside it. Prisms span the world height, so clamp into something survivable.
+        val box = region.bounds()
+        val world = region.world()
+        val y = (box.max().y() + 3).coerceIn(world.minHeight + 1, world.maxHeight - 2)
+        val target = Location(
+            world,
+            box.min().x() + box.sizeX() / 2.0,
+            y.toDouble(),
+            box.min().z() + box.sizeZ() / 2.0,
+        ).apply { pitch = 45f }
+
+        player.teleport(target)
+        Text.send(
+            player,
+            "<gray>Teleported to <aqua>${Keys.display(region.key())}<gray> " +
+                "<dark_gray>(${target.blockX}, ${target.blockY}, ${target.blockZ})",
+        )
     }
 
     @Command("parcel reload")
