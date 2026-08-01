@@ -1,0 +1,7 @@
+# Parcel
+
+tracking:
+  # How often, in ticks, player region membership is recalculated.
+  # This is the only recurring cost Parcel adds; raise it if you have very many regions and do not
+  # need frame-tight enter/exit events.
+  interval-ticks: 5
