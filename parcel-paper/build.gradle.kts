@@ -26,6 +26,11 @@ dependencies {
 
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        // Cloud's annotation parser reads parameter names off the bytecode. Without this, every
+        // @Argument would have to be named explicitly.
+        javaParameters.set(true)
+    }
 }
 
 java {
@@ -66,4 +71,19 @@ paper {
     main = "com.glance.parcel.platform.paper.ParcelPlugin"
     loader = "com.glance.parcel.platform.paper.bootstrap.ParcelLibLoader"
     generateLibrariesJson = true
+
+    permissions {
+        register("parcel.view") {
+            description = "See saved regions"
+            default = net.minecrell.pluginyml.bukkit.BukkitPluginDescription.Permission.Default.OP
+        }
+        register("parcel.edit") {
+            description = "Build selections and create, reshape or delete regions"
+            default = net.minecrell.pluginyml.bukkit.BukkitPluginDescription.Permission.Default.OP
+        }
+        register("parcel.admin") {
+            description = "Reload Parcel"
+            default = net.minecrell.pluginyml.bukkit.BukkitPluginDescription.Permission.Default.OP
+        }
+    }
 }

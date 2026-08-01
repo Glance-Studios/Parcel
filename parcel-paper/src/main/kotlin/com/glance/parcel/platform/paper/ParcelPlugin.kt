@@ -2,6 +2,9 @@ package com.glance.parcel.platform.paper
 
 import com.glance.parcel.api.ParcelAPI
 import com.glance.parcel.api.event.ParcelReadyEvent
+import com.glance.parcel.platform.paper.command.MarqueeCommands
+import com.glance.parcel.platform.paper.command.ParcelCommandManager
+import com.glance.parcel.platform.paper.command.RegionCommands
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.storage.YamlRegionRepository
@@ -31,6 +34,11 @@ class ParcelPlugin : JavaPlugin() {
         val api = ParcelAPIImpl(regions, selections)
 
         server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
+
+        ParcelCommandManager(this).register(
+            RegionCommands(regions, selections),
+            MarqueeCommands(selections),
+        )
 
         tracker = RegionTracker(
             plugin = this,

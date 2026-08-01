@@ -89,6 +89,18 @@ internal class RegionManagerImpl(
         )
 
     /**
+     * Drops every loaded region and reads them back from disk.
+     *
+     * Existing regions are announced as removed first, so anything holding per-player state for them
+     * lets go before the replacements arrive. Call on the main thread.
+     */
+    fun reload(): CompletableFuture<Int> {
+        regions.values.forEach(onRegionRemoved)
+        regions.clear()
+        return loadAll()
+    }
+
+    /**
      * Loads every stored region. Regions whose world is not loaded are skipped with a warning
      * rather than dropped, so a temporarily unloaded world does not silently delete data.
      */
