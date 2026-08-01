@@ -36,7 +36,7 @@ class ParcelPlugin : JavaPlugin() {
         server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
 
         ParcelCommandManager(this).register(
-            RegionCommands(regions, selections),
+            RegionCommands(this, regions, selections),
             MarqueeCommands(selections),
         )
 

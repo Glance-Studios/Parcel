@@ -5,11 +5,13 @@ import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.bukkit.plugin.Plugin
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.incendo.cloud.annotations.suggestion.Suggestions
 import org.incendo.cloud.context.CommandContext
+import java.util.logging.Level
 
 /**
  * Managing saved regions.
@@ -19,6 +21,7 @@ import org.incendo.cloud.context.CommandContext
  * region for before it lets you remove it.
  */
 internal class RegionCommands(
+    private val plugin: Plugin,
     private val regions: RegionManagerImpl,
     private val selections: SelectionManagerImpl,
 ) {
@@ -201,11 +204,18 @@ internal class RegionCommands(
     @Permission(ADMIN)
     fun reload(sender: CommandSender) {
         regions.reload().whenComplete { count, error ->
-            if (error != null) {
-                Text.error(sender, "Reload failed, see console.")
-                return@whenComplete
-            }
-            Text.send(sender, "<gray>Reloaded <white>$count<gray> region(s) from disk.")
+            // Loading finishes on a repository thread. Hop back before touching Bukkit, and log as
+            // well as reply - a console or RCON sender may be gone by the time this lands, and a
+            // reload that reports nothing at all is indistinguishable from one that hung.
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (error != null) {
+                    plugin.logger.log(Level.SEVERE, "Region reload failed", error)
+                    Text.error(sender, "Reload failed, see console.")
+                    return@Runnable
+                }
+                plugin.logger.info("Reloaded $count region(s) from disk")
+                Text.send(sender, "<gray>Reloaded <white>$count<gray> region(s) from disk.")
+            })
         }
     }
 
