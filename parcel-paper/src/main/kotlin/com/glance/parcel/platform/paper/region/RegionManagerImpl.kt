@@ -19,6 +19,13 @@ internal class RegionManagerImpl(
 
     private val regions = ConcurrentHashMap<NamespacedKey, RegionImpl>()
 
+    /**
+     * Notified when a region stops existing, so anything holding per-player state for it can let
+     * go. Wired to the tracker on enable, which is what keeps the "every enter gets an exit"
+     * guarantee true across a deletion.
+     */
+    var onRegionRemoved: (Region) -> Unit = {}
+
     override fun get(key: NamespacedKey): Region? = regions[key]
 
     override fun all(): Collection<Region> = java.util.List.copyOf(regions.values)
@@ -47,6 +54,7 @@ internal class RegionManagerImpl(
 
     override fun delete(key: NamespacedKey): Boolean {
         val removed = regions.remove(key) ?: return false
+        onRegionRemoved(removed)
         repository.delete(removed.key()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to delete region ${removed.key()}", error)
             null

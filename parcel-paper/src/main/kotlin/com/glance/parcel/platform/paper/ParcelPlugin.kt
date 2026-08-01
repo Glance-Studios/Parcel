@@ -38,6 +38,10 @@ class ParcelPlugin : JavaPlugin() {
             intervalTicks = config.getLong("tracking.interval-ticks", 5L).coerceAtLeast(1L),
         )
 
+        // Without this a player standing in a deleted region would never get an exit event,
+        // breaking the guarantee RegionExitEvent documents.
+        regions.onRegionRemoved = tracker::onRegionRemoved
+
         // Region loading is async, so consumers must not query until ParcelReadyEvent fires.
         regions.loadAll().whenComplete { count, error ->
             server.scheduler.runTask(this, Runnable {
