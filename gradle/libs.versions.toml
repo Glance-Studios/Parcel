@@ -9,6 +9,9 @@ cloud-paper = "2.0.0"
 # Utility
 jetbrains-annotations = "26.0.2-1"
 
+# Test
+junit = "5.11.4"
+
 # Plugins
 shadow = "8.3.5"
 plugin-yml = "0.6.0"
@@ -26,6 +29,10 @@ cloud-paper = { module = "org.incendo:cloud-paper", version.ref = "cloud-paper" 
 
 # Utility
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }
+
+# Test
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version = "1.11.4" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

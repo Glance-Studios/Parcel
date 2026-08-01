@@ -16,6 +16,12 @@ dependencies {
     paperLibrary("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}")
     paperLibrary(libs.cloud.paper)
     paperLibrary(libs.cloud.annotations)
+
+    // paper-api is compileOnly for the plugin, but tests need it at runtime - Face carries
+    // org.bukkit.Axis, so its static init fails without it.
+    testImplementation(libs.paper.api)
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 kotlin {
@@ -35,6 +41,10 @@ tasks {
 
     build {
         dependsOn(shadowJar)
+    }
+
+    test {
+        useJUnitPlatform()
     }
 
     withType<JavaCompile>().configureEach {

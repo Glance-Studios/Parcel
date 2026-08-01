@@ -41,22 +41,14 @@ internal class RegionImpl(
 
     override fun parts(): List<Part> = java.util.List.copyOf(partList)
 
-    override fun bounds(): BlockBox = additiveBounds() ?: EMPTY_BOX
+    override fun bounds(): BlockBox = cachedAdditiveBounds() ?: EMPTY_BOX
 
     override fun isEmpty(): Boolean = partList.none { it.op() == Op.ADD }
 
     override fun contains(x: Int, y: Int, z: Int): Boolean {
-        val bounds = additiveBounds() ?: return false
+        val bounds = cachedAdditiveBounds() ?: return false
         if (!bounds.contains(x, y, z)) return false
-
-        // Ordered fold, last writer wins. A subtract after an add carves; an add after that fills.
-        var inside = false
-        for (part in partList) {
-            if (part.shape().contains(x, y, z)) {
-                inside = part.op() == Op.ADD
-            }
-        }
-        return inside
+        return partList.evaluate(x, y, z)
     }
 
     override fun contains(location: Location): Boolean {
@@ -66,7 +58,7 @@ internal class RegionImpl(
 
     override fun mesh(): List<Quad> {
         cachedMesh?.let { return it }
-        val bounds = additiveBounds() ?: return emptyList<Quad>().also { cachedMesh = it }
+        val bounds = cachedAdditiveBounds() ?: return emptyList<Quad>().also { cachedMesh = it }
         val mesh = GreedyMesher.mesh(bounds) { x, y, z -> contains(x, y, z) }
         val immutable = java.util.List.copyOf(mesh)
         cachedMesh = immutable
@@ -75,16 +67,9 @@ internal class RegionImpl(
 
     override fun edit(): RegionEditor = EditorImpl()
 
-    /**
-     * Union of the ADD parts only - a subtraction can never make a region larger, so including
-     * them would inflate the bounds and slow every containment test.
-     */
-    private fun additiveBounds(): BlockBox? {
+    private fun cachedAdditiveBounds(): BlockBox? {
         if (!boundsComputed) {
-            cachedBounds = partList
-                .filter { it.op() == Op.ADD }
-                .map { it.shape().bounds() }
-                .reduceOrNull { acc, box -> acc.union(box) }
+            cachedBounds = partList.additiveBounds()
             boundsComputed = true
         }
         return cachedBounds
