@@ -40,17 +40,48 @@ public void onEnter(RegionEnterEvent event) { ... }
 
 Saved regions load asynchronously, so wait for `ParcelReadyEvent` before querying on startup.
 
-### The selection handoff
+### Regions are shared, not copied
 
-The point of the split: a builder draws a shape in game with the marquee tool, and your plugin
-turns it into one of its own regions without implementing selection at all.
+A region is geometry, not a feature. Several plugins reference the **same region by key** and each
+attach their own meaning to it - the tavern is one shape that happens to be both an ambience zone and
+a PvP zone. Edit it once and every consumer sees the change.
 
-```java
-Selection selection = Parcel.api().selections().of(player);
-Region region = selection.toRegion(new NamespacedKey(this, "tavern"));
+So a consumer's config holds a **key**, not a shape:
+
+```yaml
+ambience:
+  tavern_hum:
+    region: parcel:tavern
 ```
 
-Regions are keyed by `NamespacedKey`, so two consumers can never collide.
+If a feature needs different geometry, make a different region. Divergence is opt-in.
+
+Two consequences you have to handle:
+
+- **Listen for `RegionModifyEvent`** and drop any derived state - cached meshes, spawned visualisers,
+  per-player bookkeeping. Someone else's edit is your edit. Membership fixes itself; the tracker
+  re-evaluates and fires the enter/exit events for you.
+- **`RegionDeleteEvent` is cancellable.** Cancel if you genuinely cannot function without the region;
+  otherwise just drop your reference. Before deleting, `RegionManager.usagesOf(region)` asks every
+  plugin what it is using the region for, so a confirmation prompt can show real consequences. It is
+  a question rather than a registry, so it cannot go stale.
+
+### The selection handoff
+
+A builder draws a shape in game with the marquee tool, and it becomes a region without any plugin
+implementing selection itself.
+
+```java
+// create a new region and clear the selection
+Region region = Parcel.api().selections().promote(player, new NamespacedKey(this, "tavern"));
+
+// or reshape one that already exists - every consumer bound to it sees the new shape
+Parcel.api().selections().load(player, region);   // ... builder edits ...
+selection.applyTo(region);
+```
+
+`promote` clears the selection deliberately: a Parcel selection accumulates parts, so leaving it
+populated means the next region a builder draws silently inherits the last one's shape.
 
 ## Meshing
 

@@ -67,13 +67,30 @@ public interface Selection {
     boolean isEmpty();
 
     /**
-     * Materialises this selection as a saved region under the given key.
+     * Materialises this selection as a new saved region under the given key.
      *
-     * <p>The selection is left intact; clear it explicitly if that is what you want.
+     * <p>The selection is left intact - use {@link SelectionManager#promote} if you want the more
+     * usual "commit and move on" behaviour.
      *
      * @throws IllegalStateException    if the selection is empty
      * @throws IllegalArgumentException if a region already exists under this key
      */
     @NotNull
     Region toRegion(@NotNull NamespacedKey key);
+
+    /**
+     * Replaces an existing region's parts with this selection's.
+     *
+     * <p>This is the counterpart to {@link SelectionManager#load}, and it is the normal way to edit
+     * a region once it exists: load it into a selection, reshape it, apply it back. Because regions
+     * are referenced by key rather than copied, that edit is seen by every consumer bound to it -
+     * which is the point.
+     *
+     * <p>Fires {@link com.glance.parcel.api.event.RegionModifyEvent}.
+     *
+     * @throws IllegalStateException    if the selection is empty
+     * @throws IllegalArgumentException if the region belongs to another world
+     */
+    @NotNull
+    Region applyTo(@NotNull Region region);
 }

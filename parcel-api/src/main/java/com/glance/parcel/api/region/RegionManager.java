@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -51,9 +52,28 @@ public interface RegionManager {
     Region create(@NotNull NamespacedKey key, @NotNull World world);
 
     /**
+     * Removes a region.
+     *
+     * <p>Fires a cancellable {@link com.glance.parcel.api.event.RegionDeleteEvent} first, since
+     * regions are shared and a deletion can break consumers unrelated to whoever triggered it.
+     * Consider showing {@link #usagesOf} before calling this.
+     *
      * @return whether a region with this key existed and was removed
      */
     boolean delete(@NotNull NamespacedKey key);
+
+    /**
+     * Asks every plugin what it is using this region for.
+     *
+     * <p>Fires {@link com.glance.parcel.api.event.RegionUsageQueryEvent} and collects the answers,
+     * so the result is always current - there is no registry to go stale. Intended for confirmation
+     * prompts before a destructive change.
+     *
+     * @return human-readable usage descriptions, empty if nothing claims this region
+     */
+    @NotNull
+    @Unmodifiable
+    List<String> usagesOf(@NotNull Region region);
 
     /**
      * Persists a region through the configured repository. Completes off the main thread.

@@ -37,8 +37,11 @@ public interface SelectionManager {
     Selection load(@NotNull Player player, @NotNull Region region);
 
     /**
-     * Convenience for the common consumer flow: take the player's selection and save it under the
-     * given key.
+     * The common flow: save the player's selection as a region and clear it.
+     *
+     * <p>Clearing is the point - a Parcel selection accumulates parts, so leaving it populated after
+     * a commit means the next region a builder draws silently inherits the previous one's shape.
+     * Use {@link Selection#toRegion} directly if you genuinely want to keep it.
      *
      * @throws IllegalStateException if the player has no selection, or it is empty
      */

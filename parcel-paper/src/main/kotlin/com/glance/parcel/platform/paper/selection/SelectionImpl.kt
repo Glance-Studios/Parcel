@@ -55,6 +55,17 @@ internal class SelectionImpl(
         return editor.commit()
     }
 
+    override fun applyTo(region: Region): Region {
+        check(committed.isNotEmpty()) { "Cannot apply an empty selection to a region" }
+        require(region.world() == world) {
+            "Selection is in ${world.name} but ${region.key()} is in ${region.world().name}"
+        }
+
+        val editor = region.edit().clear()
+        committed.forEach(editor::addPart)
+        return editor.commit()
+    }
+
     fun setCornerA(pos: BlockPos) {
         cornerA = pos
     }

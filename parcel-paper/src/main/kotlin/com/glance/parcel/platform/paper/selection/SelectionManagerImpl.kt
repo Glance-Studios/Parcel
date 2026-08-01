@@ -28,7 +28,10 @@ internal class SelectionManagerImpl(
     override fun promote(player: Player, key: NamespacedKey): Region {
         val selection = selections[player.uniqueId]
             ?: error("${player.name} has no active selection")
-        return selection.toRegion(key)
+        val region = selection.toRegion(key)
+        // Clear on commit: parts accumulate, so a stale selection would leak into the next region.
+        selection.clearParts()
+        return region
     }
 
     /**

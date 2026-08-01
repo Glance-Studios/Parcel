@@ -1,5 +1,9 @@
 package com.glance.parcel.platform.paper.region
 
+import com.glance.parcel.api.event.RegionCreateEvent
+import com.glance.parcel.api.event.RegionDeleteEvent
+import com.glance.parcel.api.event.RegionModifyEvent
+import com.glance.parcel.api.event.RegionUsageQueryEvent
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
 import com.glance.parcel.api.storage.RegionRepository
@@ -49,10 +53,18 @@ internal class RegionManagerImpl(
         require(!regions.containsKey(key)) { "A region already exists under $key" }
         val region = RegionImpl(key, world, onChanged = ::persist)
         regions[key] = region
+        plugin.server.pluginManager.callEvent(RegionCreateEvent(region))
         return region
     }
 
     override fun delete(key: NamespacedKey): Boolean {
+        val target = regions[key] ?: return false
+
+        // Regions are shared by key, so a delete can break consumers that had no part in it.
+        val event = RegionDeleteEvent(target)
+        plugin.server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
+
         val removed = regions.remove(key) ?: return false
         onRegionRemoved(removed)
         repository.delete(removed.key()).exceptionally { error ->
@@ -60,6 +72,12 @@ internal class RegionManagerImpl(
             null
         }
         return true
+    }
+
+    override fun usagesOf(region: Region): List<String> {
+        val event = RegionUsageQueryEvent(region)
+        plugin.server.pluginManager.callEvent(event)
+        return event.usages()
     }
 
     override fun save(region: Region): CompletableFuture<Void> =
@@ -90,8 +108,13 @@ internal class RegionManagerImpl(
         loaded
     }
 
-    /** Registered as the change hook on every region, so an edit persists itself. */
+    /**
+     * Registered as the change hook on every region, so an edit persists itself and announces
+     * itself. The announcement matters because consumers share regions by key - an edit made
+     * anywhere is an edit everyone bound to that key needs to hear about.
+     */
     private fun persist(region: RegionImpl) {
+        plugin.server.pluginManager.callEvent(RegionModifyEvent(region))
         repository.save(region.toRecord()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to save region ${region.key()}", error)
             null
