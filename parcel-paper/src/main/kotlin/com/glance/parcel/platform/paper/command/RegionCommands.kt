@@ -4,6 +4,9 @@ import com.glance.parcel.api.region.Op
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
+import com.glance.parcel.platform.paper.visual.panel.PanelCalibration
+import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
+import com.glance.parcel.platform.paper.visual.panel.StepTarget
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -27,6 +30,8 @@ internal class RegionCommands(
     private val regions: RegionManagerImpl,
     private val selections: SelectionManagerImpl,
     private val outlines: OutlineRenderer,
+    private val panels: PanelRenderer,
+    private val calibration: PanelCalibration,
 ) {
 
     @Suggestions("region-keys")
@@ -44,6 +49,7 @@ internal class RegionCommands(
         Text.raw(sender, "  <dark_gray>create/save/apply also work on <aqua>/mq")
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
+        Text.raw(sender, "  <aqua>/parcel render <name><gray> - toggle solid panels on its surface")
         Text.raw(sender, "  <aqua>/parcel goto <name><gray> - teleport to it")
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
@@ -247,6 +253,66 @@ internal class RegionCommands(
         Text.send(player, "<gray>Showing <aqua>${Keys.display(region.key())}<gray>.")
         if (region.world() != player.world) {
             Text.raw(player, "  <yellow>It is in ${region.world().name} - /parcel goto to fly there.")
+        }
+    }
+
+    @Command("parcel calibrate")
+    @Permission(ADMIN)
+    fun calibrate(player: Player) = calibration.start(player)
+
+    @Command("parcel calibrate done")
+    @Permission(ADMIN)
+    fun calibrateDone(player: Player) = calibration.finish(player)
+
+    @Command("parcel calibrate step <tool> <amount>")
+    @Permission(ADMIN)
+    fun calibrateStep(
+        player: Player,
+        @Argument("tool") tool: StepTarget,
+        @Argument("amount") amount: Double,
+    ) {
+        if (!calibration.setStep(player, tool, amount.toFloat())) {
+            Text.error(player, "You are not calibrating.")
+            return
+        }
+        Text.send(
+            player,
+            "<gray>${tool.name.lowercase()} step is now <white>$amount<gray>.",
+        )
+    }
+
+    @Command("parcel calibrate cancel")
+    @Permission(ADMIN)
+    fun calibrateCancel(player: Player) {
+        if (!calibration.stop(player)) {
+            Text.error(player, "You are not calibrating.")
+            return
+        }
+        Text.send(player, "<gray>Calibration cancelled.")
+    }
+
+    @Command("parcel render <name>")
+    @Permission(VIEW)
+    fun render(
+        sender: CommandSender,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(sender, name) ?: return
+
+        if (panels.isShowing(region)) {
+            panels.hide(region.key())
+            Text.send(sender, "<gray>Hid panels for <aqua>${Keys.display(region.key())}<gray>.")
+            return
+        }
+
+        when (val count = panels.show(region)) {
+            -1 -> Text.error(sender, "${Keys.display(region.key())} is too large to render.")
+            0 -> Text.error(sender, "${Keys.display(region.key())} has no shape to render.")
+            else -> Text.send(
+                sender,
+                "<gray>Rendering <aqua>${Keys.display(region.key())}<gray> as " +
+                    "<white>$count<gray> panel(s).",
+            )
         }
     }
 

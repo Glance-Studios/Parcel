@@ -18,6 +18,63 @@ marquee:
   # and this says which.
   debug: false
 
+panels:
+  # Translucent panels over a region's meshed surface, via /parcel render.
+  # Interior faces are already gone and coplanar faces merged, so two flush boxes are six faces.
+
+  # TEXT  - a mirrored pair of text displays per face. Any colour, any alpha. Two entities per face,
+  #         because a text display only renders from one side.
+  # BLOCK - one thin stained-glass block display per face. Exact, two-sided for free, but limited to
+  #         the glass palette. Useful as the ground truth to calibrate TEXT against.
+  primitive: TEXT
+
+  # ARGB for TEXT panels. Alpha is what makes them see-through.
+  colour:
+    red: 85
+    green: 200
+    blue: 255
+    alpha: 90
+
+  # Size in blocks of an empty text display's background at scale 1, and where that quad sits
+  # relative to its entity. Both MEASURED with /parcel calibrate on 1.21.11, not derived - a text
+  # display's quad is sized by its glyphs and padding.
+  #
+  # The values landing on exact eighths and quarters is not a coincidence: a text display renders at
+  # 40 font units per block, a space glyph is 5 units wide with its spacing, and a line is 10 units
+  # tall with its background padding. So 5/40 and 10/40.
+  text-base-width: 0.1250
+  text-base-height: 0.2500
+
+  # anchor-y is exactly half the height, because the entity sits on the quad's bottom edge - text
+  # hangs above its position like a nametag rather than being centred on it. The correction scales
+  # with the panel, so it is stored per unit of scale and multiplied back up per face.
+  text-anchor-x: 0.0125
+  text-anchor-y: 0.1250
+
+  # Only used by BLOCK.
+  material: LIGHT_BLUE_STAINED_GLASS
+
+  # Slab depth, straddling the face plane so it reads as a surface rather than sitting to one side.
+  thickness: 0.02
+
+  # Lift off the surface being covered, along the face normal. A panel sitting exactly on a block
+  # face z-fights with it and flickers. Because the normal is perpendicular to both axes the panel
+  # is sized on, this only changes depth - it cannot disturb size or alignment, so it is safe to
+  # raise without recalibrating anything.
+  surface-offset: 0.01
+
+  # How far away panels stay rendered. This is a multiplier on the client's entity render distance,
+  # not blocks - the default of 1.0 is far too short for something you stand inside.
+  view-range: 4.0
+
+  # Added to the culling box on each axis. The client culls a display on its BOUNDING BOX, not on
+  # what it draws, and the default box is a point - so a panel spanning a whole face disappears
+  # whenever its origin leaves your view. Raise this if faces pop out of existence.
+  culling-padding: 2.0
+
+  # Refuse to render a mesh larger than this rather than spawning thousands of entities.
+  max-panels: 512
+
 outline:
   # Particle outlines of your selection, and of any region you /parcel show.
   # Sent per player, so guides are never visible to anyone else.
