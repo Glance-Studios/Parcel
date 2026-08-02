@@ -115,6 +115,14 @@ internal class SelectionImpl(
     fun undo(): Part? =
         if (committed.isEmpty()) null else committed.removeAt(committed.size - 1)
 
+    /** Unmarks the corners, keeping everything already committed. */
+    fun clearPending(): Boolean {
+        val had = cornerA != null || cornerB != null
+        cornerA = null
+        cornerB = null
+        return had
+    }
+
     fun clearParts() {
         committed.clear()
         cornerA = null

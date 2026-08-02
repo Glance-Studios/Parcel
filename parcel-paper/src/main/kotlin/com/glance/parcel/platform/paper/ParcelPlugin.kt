@@ -5,11 +5,14 @@ import com.glance.parcel.api.event.ParcelReadyEvent
 import com.glance.parcel.platform.paper.command.MarqueeCommands
 import com.glance.parcel.platform.paper.command.ParcelCommandManager
 import com.glance.parcel.platform.paper.command.RegionCommands
+import com.glance.parcel.platform.paper.marquee.MarqueeListener
+import com.glance.parcel.platform.paper.marquee.MarqueeWand
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.storage.YamlRegionRepository
 import com.glance.parcel.platform.paper.tracking.RegionTracker
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
+import org.bukkit.Material
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
@@ -49,9 +52,21 @@ class ParcelPlugin : JavaPlugin() {
             ),
         )
 
+        val wandMaterial = Material.matchMaterial(
+            config.getString("marquee.wand-material") ?: "GOLDEN_AXE"
+        ) ?: Material.GOLDEN_AXE.also {
+            logger.warning("Unknown marquee.wand-material, falling back to GOLDEN_AXE")
+        }
+        val wand = MarqueeWand(this, wandMaterial)
+
+        server.pluginManager.registerEvents(
+            MarqueeListener(this, wand, selections, config.getBoolean("marquee.debug", false)),
+            this,
+        )
+
         ParcelCommandManager(this).register(
             RegionCommands(this, regions, selections, outlines),
-            MarqueeCommands(selections),
+            MarqueeCommands(selections, wand),
         )
 
         tracker = RegionTracker(

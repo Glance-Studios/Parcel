@@ -3,6 +3,7 @@ package com.glance.parcel.platform.paper.command
 import com.glance.parcel.api.math.BlockPos
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.selection.SelectionMode
+import com.glance.parcel.platform.paper.marquee.MarqueeWand
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.entity.Player
 import org.incendo.cloud.annotations.Argument
@@ -18,17 +19,35 @@ import org.incendo.cloud.annotations.Permission
  */
 internal class MarqueeCommands(
     private val selections: SelectionManagerImpl,
+    private val wand: MarqueeWand,
 ) {
+
+    @Command("marquee|mq wand|tool")
+    @Permission(PERMISSION)
+    fun wand(player: Player) {
+        val leftover = player.inventory.addItem(wand.create())
+        if (leftover.isEmpty()) {
+            Text.send(player, "<gray>Have a marquee. <dark_gray>Left click, right click, sneak to commit.")
+        } else {
+            // Never silently drop it on the floor - a wand in a lava pit is a confusing failure.
+            Text.error(player, "Your inventory is full.")
+        }
+    }
 
     @Command("marquee|mq")
     @Permission(PERMISSION)
     fun help(player: Player) {
         Text.send(player, "<gray>Selection tool. Commands:")
+        Text.raw(player, "  <aqua>/mq wand<gray> (or <aqua>tool<gray>) - get the wand")
         Text.raw(player, "  <aqua>/mq pos1<gray> and <aqua>/mq pos2<gray> - mark the two corners")
         Text.raw(player, "  <aqua>/mq mode <flat|volume><gray> - flat ignores Y and spans world height")
         Text.raw(player, "  <aqua>/mq add<gray> / <aqua>/mq carve<gray> - commit the marked box, or cut it away")
-        Text.raw(player, "  <aqua>/mq undo<gray>, <aqua>/mq clear<gray>, <aqua>/mq info")
-        Text.raw(player, "  <aqua>/parcel create <name><gray> - save the selection as a region")
+        Text.raw(player, "  <aqua>/mq undo<gray> - remove the last committed part")
+        Text.raw(player, "  <aqua>/mq cancel<gray> - unmark the corners, keep the parts")
+        Text.raw(player, "  <aqua>/mq clear<gray> / <aqua>deselect<gray> - empty it / drop it entirely")
+        Text.raw(player, "  <aqua>/mq info<gray> - what is selected right now")
+        Text.raw(player, "  <aqua>/mq save<gray> (or <aqua>create<gray>) <aqua><name><gray> - save as a new region")
+        Text.raw(player, "  <aqua>/mq apply <name><gray> - reshape an existing region to match")
     }
 
     @Command("marquee|mq pos1")
@@ -103,6 +122,32 @@ internal class MarqueeCommands(
     fun clear(player: Player) {
         selections.get(player).clearParts()
         Text.send(player, "<gray>Selection cleared.")
+    }
+
+    @Command("marquee|mq cancel")
+    @Permission(PERMISSION)
+    fun cancel(player: Player) {
+        val selection = selections.get(player)
+        if (!selection.clearPending()) {
+            Text.error(player, "No corners marked.")
+            return
+        }
+        Text.send(
+            player,
+            "<gray>Corners unmarked. <dark_gray>${selection.parts().size} committed part(s) kept.",
+        )
+    }
+
+    @Command("marquee|mq deselect|reset")
+    @Permission(PERMISSION)
+    fun deselect(player: Player) {
+        // Drops the selection object entirely rather than emptying it, so nothing is left to draw
+        // and the next selection starts from a clean slate in whatever world you are then in.
+        if (!selections.clear(player)) {
+            Text.error(player, "You have no selection.")
+            return
+        }
+        Text.send(player, "<gray>Deselected. Corners, parts and outline all gone.")
     }
 
     @Command("marquee|mq info")

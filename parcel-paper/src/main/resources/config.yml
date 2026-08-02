@@ -6,6 +6,18 @@ tracking:
   # need frame-tight enter/exit events.
   interval-ticks: 5
 
+marquee:
+  # The selection wand. Deliberately NOT a wooden axe - that is WorldEdit's wand, and on a server
+  # running both, every click would be claimed twice.
+  # The item is identified by a hidden tag, not by material or name, so a renamed item cannot
+  # impersonate it and an ordinary axe is unaffected.
+  wand-material: GOLDEN_AXE
+
+  # Logs every wand interaction with its action, hand and sneak state. Bindings that "do nothing"
+  # are almost always an event that never arrived or arrived with different state than expected,
+  # and this says which.
+  debug: false
+
 outline:
   # Particle outlines of your selection, and of any region you /parcel show.
   # Sent per player, so guides are never visible to anyone else.
