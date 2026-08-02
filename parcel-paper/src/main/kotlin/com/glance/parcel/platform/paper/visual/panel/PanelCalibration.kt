@@ -40,6 +40,7 @@ import java.util.UUID
  */
 internal class PanelCalibration(
     private val plugin: Plugin,
+    private val displays: Displays,
 ) : Listener {
 
     private val scaleTag = NamespacedKey(plugin, "panel_scaler")
@@ -129,7 +130,7 @@ internal class PanelCalibration(
         // surface so it does not z-fight with it.
         val panelAt = faceCentre(blockLocation, face, 0.02)
 
-        val panel = world.spawn(panelAt, TextDisplay::class.java) { d ->
+        val panel = displays.spawn(panelAt, TextDisplay::class.java) { d ->
             d.text(Component.text(" "))
             d.backgroundColor = Color.fromARGB(200, 85, 200, 255)
             d.billboard = Display.Billboard.FIXED
@@ -144,7 +145,7 @@ internal class PanelCalibration(
         // A second, display-based one-block square two along, so the text panel can be compared
         // against both a real block and a display of known exact size.
         val sideways = sidewaysOffset(face, 2.0)
-        val reference = world.spawn(
+        val reference = displays.spawn(
             faceCentre(blockLocation.clone().add(sideways), face, 0.02),
             BlockDisplay::class.java,
         ) { d ->
@@ -359,7 +360,6 @@ internal class PanelCalibration(
         display.viewRange = 4f
         display.displayWidth = 8f
         display.displayHeight = 8f
-        display.isPersistent = false
     }
 
     private fun line(raw: String) = mm.deserialize("<!italic>$raw")

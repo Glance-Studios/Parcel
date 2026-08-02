@@ -50,6 +50,7 @@ internal class PanelRenderer(
     private val styles: StyleStore,
     private val wireframes: WireframeRenderer,
     private val regions: RegionManager,
+    private val displays: Displays,
 ) : Listener {
 
     private fun regionOf(key: NamespacedKey) = regions.get(key)
@@ -225,7 +226,7 @@ internal class PanelRenderer(
 
     private fun spawnBlockPanel(world: World, quad: Quad, style: PanelStyle): BlockDisplay {
         val p = Panels.placementFor(quad, settings.thickness, settings.surfaceOffset)
-        return world.spawn(Location(world, p.x, p.y, p.z), BlockDisplay::class.java) { display ->
+        return displays.spawn(Location(world, p.x, p.y, p.z), BlockDisplay::class.java) { display ->
             // Block displays cannot take an arbitrary colour, so honour the request as closely as
             // the glass palette allows rather than ignoring it.
             display.block = GlassPalette.nearest(style.colour).createBlockData()
@@ -244,7 +245,7 @@ internal class PanelRenderer(
         p: TextPanelPlacement,
         rotation: Quaternionf,
         style: PanelStyle,
-    ): TextDisplay = world.spawn(
+    ): TextDisplay = displays.spawn(
         Location(world, p.x, p.y, p.z),
         TextDisplay::class.java,
     ) { display ->
@@ -285,8 +286,6 @@ internal class PanelRenderer(
         // Set once, at spawn. Changing it later would itself restart interpolation, so following
         // planes announce their move duration up front and then only ever teleport.
         display.teleportDuration = settings.follow.interpolationTicks
-
-        display.isPersistent = false
     }
 
     fun hide(key: NamespacedKey) {

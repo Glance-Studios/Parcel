@@ -17,6 +17,7 @@ import com.glance.parcel.platform.paper.storage.PartCodec
 import com.glance.parcel.platform.paper.storage.YamlRegionRepository
 import com.glance.parcel.platform.paper.tracking.RegionTracker
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
+import com.glance.parcel.platform.paper.visual.panel.Displays
 import com.glance.parcel.platform.paper.visual.panel.PanelCalibration
 import com.glance.parcel.platform.paper.visual.panel.PanelPrimitive
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
@@ -43,6 +44,7 @@ class ParcelPlugin : JavaPlugin() {
     private lateinit var panels: PanelRenderer
     private lateinit var calibration: PanelCalibration
     private lateinit var styles: StyleStore
+    private lateinit var displays: Displays
     private lateinit var wireframes: WireframeRenderer
 
     override fun onEnable() {
@@ -97,6 +99,11 @@ class ParcelPlugin : JavaPlugin() {
 
         styles = StyleStore(File(dataFolder, "styles.yml")).apply { load() }
 
+        displays = Displays(this)
+        // Catches anything a previous enable left standing - a plugin reload disables us without
+        // unloading the world, so displays with nothing left to own them would otherwise linger.
+        displays.sweep().takeIf { it > 0 }?.let { logger.info("Removed $it orphaned display(s)") }
+
         wireframes = WireframeRenderer(
             plugin = this,
             regions = regions,
@@ -117,6 +124,7 @@ class ParcelPlugin : JavaPlugin() {
             styles = styles,
             wireframes = wireframes,
             regions = regions,
+            displays = displays,
             settings = PanelRenderer.Settings(
                 defaultStyle = PanelStyle(
                     primitive = runCatching {
@@ -173,7 +181,7 @@ class ParcelPlugin : JavaPlugin() {
         // not appear in help or tab completion and its listener is never hooked up - the tools are
         // inert even if someone still has one in a chest.
         if (config.getBoolean("dev-tools", false)) {
-            calibration = PanelCalibration(this)
+            calibration = PanelCalibration(this, displays)
             server.pluginManager.registerEvents(calibration, this)
             commands.register(DevCommands(calibration))
             logger.info("Dev tools enabled: /parcel calibrate is available")
