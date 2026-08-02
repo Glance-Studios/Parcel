@@ -83,6 +83,22 @@ panels:
   # Refuse to render a mesh larger than this rather than spawning thousands of entities.
   max-panels: 512
 
+  # WIREFRAME primitive: a particle grid over the meshed surface. No entities, so it costs nothing
+  # to leave on and cannot leave anything behind. Grid spacing is per style, set in /parcel style.
+  wireframe:
+    interval-ticks: 4
+
+    # Only the part of a grid within this many blocks of you is drawn - a large region's full
+    # lattice is far too many points, and you can only see the near part regardless.
+    range: 48.0
+
+    # Blocks between particles along a grid line.
+    resolution: 0.5
+
+    # Ceiling per player per pass, shared across every wireframed region, so a busy view degrades
+    # evenly instead of the first region using the whole budget.
+    max-points: 900
+
 outline:
   # Particle outlines of your selection, and of any region you /parcel show.
   # Sent per player, so guides are never visible to anyone else.

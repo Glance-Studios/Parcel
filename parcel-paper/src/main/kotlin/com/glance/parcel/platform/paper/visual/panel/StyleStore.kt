@@ -34,6 +34,8 @@ internal class StyleStore(private val file: File) {
                 green = section.getInt("green", 200).coerceIn(0, 255),
                 blue = section.getInt("blue", 255).coerceIn(0, 255),
                 alpha = section.getInt("alpha", 90).coerceIn(0, 255),
+                gridSpacing = section.getDouble("grid-spacing", 1.0).toFloat().coerceIn(0.25f, 8f),
+                particleSize = section.getDouble("particle-size", 0.6).toFloat(),
             )
         }
     }
@@ -59,6 +61,8 @@ internal class StyleStore(private val file: File) {
             yaml.set("$key.green", style.green)
             yaml.set("$key.blue", style.blue)
             yaml.set("$key.alpha", style.alpha)
+            yaml.set("$key.grid-spacing", style.gridSpacing)
+            yaml.set("$key.particle-size", style.particleSize)
         }
         file.parentFile?.mkdirs()
         yaml.save(file)

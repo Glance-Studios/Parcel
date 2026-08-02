@@ -56,8 +56,9 @@ internal class PanelStyleDialog(
                         listOf(
                             DialogBody.plainMessage(
                                 mm.deserialize(
-                                    "<gray>Alpha only applies to <white>text<gray> panels - block " +
-                                        "panels take their translucency from the glass texture."
+                                    "<gray>Alpha applies to <white>text<gray> panels only. " +
+                                        "Grid spacing applies to <white>wireframe<gray> only. " +
+                                        "Block panels take their colour from the nearest glass."
                                 )
                             )
                         )
@@ -68,6 +69,12 @@ internal class PanelStyleDialog(
                             channel("green", "Green", style.green),
                             channel("blue", "Blue", style.blue),
                             channel("alpha", "Alpha", style.alpha),
+                            DialogInput.numberRange(
+                                "grid",
+                                mm.deserialize("<gray>Grid spacing (wireframe)"),
+                                0.25f,
+                                8f,
+                            ).initial(style.gridSpacing).step(0.25f).width(200).build(),
                             // The toggle exists because the hex field is pre-filled with the
                             // current colour, so "hex wins when non-empty" would mean the sliders
                             // never did anything. Which source to use has to be said explicitly.
@@ -160,6 +167,8 @@ internal class PanelStyleDialog(
             green = typed?.green ?: view.getFloat("green")?.toInt() ?: fallback.green,
             blue = typed?.blue ?: view.getFloat("blue")?.toInt() ?: fallback.blue,
             alpha = view.getFloat("alpha")?.toInt() ?: fallback.alpha,
+            gridSpacing = view.getFloat("grid") ?: fallback.gridSpacing,
+            particleSize = fallback.particleSize,
         )
     }
 

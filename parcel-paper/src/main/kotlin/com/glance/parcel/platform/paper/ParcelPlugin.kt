@@ -19,6 +19,7 @@ import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
 import com.glance.parcel.platform.paper.visual.panel.PanelStyle
 import com.glance.parcel.platform.paper.visual.panel.PanelStyleDialog
 import com.glance.parcel.platform.paper.visual.panel.StyleStore
+import com.glance.parcel.platform.paper.visual.panel.WireframeRenderer
 import org.bukkit.Material
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
@@ -38,6 +39,7 @@ class ParcelPlugin : JavaPlugin() {
     private lateinit var panels: PanelRenderer
     private lateinit var calibration: PanelCalibration
     private lateinit var styles: StyleStore
+    private lateinit var wireframes: WireframeRenderer
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -76,9 +78,22 @@ class ParcelPlugin : JavaPlugin() {
 
         styles = StyleStore(File(dataFolder, "styles.yml")).apply { load() }
 
+        wireframes = WireframeRenderer(
+            plugin = this,
+            regions = regions,
+            settings = WireframeRenderer.Settings(
+                intervalTicks = config.getLong("panels.wireframe.interval-ticks", 4L).coerceAtLeast(1L),
+                range = config.getDouble("panels.wireframe.range", 48.0),
+                resolution = config.getDouble("panels.wireframe.resolution", 0.5),
+                lift = config.getDouble("panels.surface-offset", 0.01),
+                maxPoints = config.getInt("panels.wireframe.max-points", 900),
+            ),
+        )
+
         panels = PanelRenderer(
             plugin = this,
             styles = styles,
+            wireframes = wireframes,
             settings = PanelRenderer.Settings(
                 defaultStyle = PanelStyle(
                     primitive = runCatching {
@@ -147,6 +162,7 @@ class ParcelPlugin : JavaPlugin() {
                 logger.info("Loaded $count region(s)")
                 tracker.start()
                 if (config.getBoolean("outline.enabled", true)) outlines.start()
+                wireframes.start()
                 server.pluginManager.callEvent(ParcelReadyEvent(api))
             })
         }
@@ -158,6 +174,9 @@ class ParcelPlugin : JavaPlugin() {
         }
         if (::outlines.isInitialized) {
             outlines.stop()
+        }
+        if (::wireframes.isInitialized) {
+            wireframes.stop()
         }
         if (::panels.isInitialized) {
             // Non-persistent displays would not survive a restart anyway, but leaving them for a

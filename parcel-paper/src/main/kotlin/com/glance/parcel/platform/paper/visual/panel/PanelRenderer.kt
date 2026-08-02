@@ -41,6 +41,7 @@ internal class PanelRenderer(
     private val plugin: Plugin,
     private val settings: Settings,
     private val styles: StyleStore,
+    private val wireframes: WireframeRenderer,
 ) : Listener {
 
     /** Explicit choice, then the region's stored default, then the config default. */
@@ -82,7 +83,8 @@ internal class PanelRenderer(
 
     private val active = HashMap<NamespacedKey, List<Display>>()
 
-    fun isShowing(region: Region): Boolean = active.containsKey(region.key())
+    fun isShowing(region: Region): Boolean =
+        active.containsKey(region.key()) || wireframes.isShowing(region.key())
 
     /** @return true if the region is now shown */
     fun toggle(region: Region): Boolean {
@@ -103,8 +105,15 @@ internal class PanelRenderer(
         val mesh = runCatching { region.mesh() }.getOrNull() ?: return -1
         if (mesh.size > settings.maxPanels) return -1
 
+        // Particles are re-emitted forever rather than spawned once, so that path lives elsewhere.
+        if (style.primitive == PanelPrimitive.WIREFRAME) {
+            wireframes.show(region, style)
+            return mesh.size
+        }
+
         val world = region.world()
         val displays = when (style.primitive) {
+            PanelPrimitive.WIREFRAME -> emptyList() // handled above
             PanelPrimitive.BLOCK -> mesh.map { spawnBlockPanel(world, it, style) }
             // Two per quad: a text display renders from one side only.
             PanelPrimitive.TEXT -> mesh.flatMap { quad ->
@@ -184,6 +193,7 @@ internal class PanelRenderer(
 
     fun hide(key: NamespacedKey) {
         active.remove(key)?.forEach { it.remove() }
+        wireframes.hide(key)
     }
 
     fun refresh(region: Region) {

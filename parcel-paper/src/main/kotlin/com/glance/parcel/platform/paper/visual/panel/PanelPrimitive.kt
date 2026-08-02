@@ -18,6 +18,15 @@ internal enum class PanelPrimitive {
     BLOCK,
 
     /**
+     * A particle grid across the meshed surface.
+     *
+     * No entities at all, so it costs nothing to leave on and cannot leave anything behind. Because
+     * it draws the *meshed* surface rather than each part, two flush boxes wireframe as one
+     * continuous grid with no line down the seam. Grid spacing is per style.
+     */
+    WIREFRAME,
+
+    /**
      * A pair of text displays with an empty string and a translucent background.
      *
      * Arbitrary ARGB, so any colour at any alpha. Costs two entities per quad, because a text

@@ -17,6 +17,10 @@ internal data class PanelStyle(
     val green: Int,
     val blue: Int,
     val alpha: Int,
+    /** Blocks between wireframe grid lines. Ignored by the solid primitives. */
+    val gridSpacing: Float = 1f,
+    /** Particle size for wireframe lines. */
+    val particleSize: Float = 0.6f,
 ) {
     val colour: Color get() = Color.fromRGB(red, green, blue)
 
