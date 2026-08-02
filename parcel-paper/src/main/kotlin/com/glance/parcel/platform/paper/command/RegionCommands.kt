@@ -1,6 +1,7 @@
 package com.glance.parcel.platform.paper.command
 
 import com.glance.parcel.api.region.Op
+import com.glance.parcel.api.region.Region
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
@@ -46,7 +47,9 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel list [namespace]<gray> - saved regions")
         Text.raw(sender, "  <aqua>/parcel info <name><gray> - parts, bounds and who uses it")
         Text.raw(sender, "  <aqua>/parcel create<gray> (or <aqua>save<gray>) <aqua><name><gray> - save your selection as a new region")
-        Text.raw(sender, "  <aqua>/parcel apply <name><gray> - reshape an existing region to your selection")
+        Text.raw(sender, "  <aqua>/parcel load <name><gray> - pull a region into your selection to edit")
+        Text.raw(sender, "  <aqua>/parcel apply <name><gray> - REPLACE a region's shape with your selection")
+        Text.raw(sender, "  <aqua>/parcel append <name><gray> - ADD your selection to it, keeping what is there")
         Text.raw(sender, "  <dark_gray>create/save/apply also work on <aqua>/mq")
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
@@ -196,13 +199,109 @@ internal class RegionCommands(
         }
 
         val usages = regions.usagesOf(region)
-        selection.applyTo(region)
+        val result = runCatching { selection.applyTo(region) }
+        if (result.isFailure) {
+            Text.error(player, result.exceptionOrNull()?.message ?: "Could not apply that selection.")
+            Text.raw(
+                player,
+                "  <gray>Try <aqua>/parcel append ${Keys.display(region.key())}<gray> to add to it " +
+                    "instead of replacing it.",
+            )
+            return
+        }
 
         Text.send(player, "<gray>Reshaped <aqua>${Keys.display(region.key())}<gray>.")
-        if (usages.isNotEmpty()) {
-            Text.raw(player, "  <yellow>This region is shared. Also affects:")
-            usages.forEach { Text.raw(player, "    <dark_gray>- <gray>$it") }
+        warnShared(player, region, usages)
+    }
+
+    @Command("parcel load <name>")
+    @Permission(EDIT)
+    fun load(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) = loadImpl(player, name)
+
+    @Command("marquee|mq load <name>")
+    @Permission(EDIT)
+    fun loadFromMarquee(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) = loadImpl(player, name)
+
+    /**
+     * The first half of the round trip that gives `apply` its purpose: pull a region into the
+     * selection, edit it there, then apply it back. Without this, `apply` could only ever be
+     * reached with a selection built from scratch, where replacing is rarely what is meant.
+     */
+    private fun loadImpl(player: Player, name: String) {
+        val region = resolve(player, name) ?: return
+
+        if (region.world() != player.world) {
+            Text.error(
+                player,
+                "${Keys.display(region.key())} is in ${region.world().name}. " +
+                    "Use /parcel goto ${Keys.display(region.key())} first.",
+            )
+            return
         }
+
+        val existing = selections.of(player)
+        if (existing != null && !existing.isEmpty()) {
+            Text.error(player, "You already have a selection. Clear it first with /mq deselect.")
+            return
+        }
+
+        val selection = selections.load(player, region)
+        Text.send(
+            player,
+            "<gray>Loaded <aqua>${Keys.display(region.key())}<gray> into your selection " +
+                "(<white>${selection.parts().size}<gray> part(s)).",
+        )
+        Text.raw(
+            player,
+            "  <dark_gray>Edit it, then <gray>/parcel apply ${Keys.display(region.key())}<dark_gray> to save.",
+        )
+    }
+
+    @Command("parcel append <name>")
+    @Permission(EDIT)
+    fun append(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) = appendImpl(player, name)
+
+    @Command("marquee|mq append <name>")
+    @Permission(EDIT)
+    fun appendFromMarquee(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) = appendImpl(player, name)
+
+    private fun appendImpl(player: Player, name: String) {
+        val region = resolve(player, name) ?: return
+
+        val selection = selections.of(player)
+        if (selection == null || selection.isEmpty()) {
+            Text.error(player, "Your selection is empty. Build one with /marquee first.")
+            return
+        }
+
+        val usages = regions.usagesOf(region)
+        val before = region.parts().size
+        selection.appendTo(region)
+
+        Text.send(
+            player,
+            "<gray>Added <white>${region.parts().size - before}<gray> part(s) to " +
+                "<aqua>${Keys.display(region.key())}<gray>.",
+        )
+        warnShared(player, region, usages)
+    }
+
+    private fun warnShared(player: Player, region: Region, usages: List<String>) {
+        if (usages.isEmpty()) return
+        Text.raw(player, "  <yellow>This region is shared. Also affects:")
+        usages.forEach { Text.raw(player, "    <dark_gray>- <gray>$it") }
     }
 
     @Command("parcel delete <name>")

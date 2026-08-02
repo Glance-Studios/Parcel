@@ -47,7 +47,9 @@ internal class MarqueeCommands(
         Text.raw(player, "  <aqua>/mq clear<gray> / <aqua>deselect<gray> - empty it / drop it entirely")
         Text.raw(player, "  <aqua>/mq info<gray> - what is selected right now")
         Text.raw(player, "  <aqua>/mq save<gray> (or <aqua>create<gray>) <aqua><name><gray> - save as a new region")
-        Text.raw(player, "  <aqua>/mq apply <name><gray> - reshape an existing region to match")
+        Text.raw(player, "  <aqua>/mq load <name><gray> - pull a region in here to edit it")
+        Text.raw(player, "  <aqua>/mq apply <name><gray> - replace a region's shape with this")
+        Text.raw(player, "  <aqua>/mq append <name><gray> - add this to it, e.g. carving into it")
     }
 
     @Command("marquee|mq pos1")
