@@ -64,9 +64,10 @@ internal class RegionCommands(
             val box = region.bounds()
             val size = if (region.isEmpty()) "<dark_gray>empty" else
                 "<white>${box.sizeX()}x${box.sizeY()}x${box.sizeZ()}"
+            val transient = if (region.isTransient()) " <yellow>*" else ""
             Text.raw(
                 sender,
-                "  <aqua>${Keys.display(region.key())} " +
+                "  <aqua>${Keys.display(region.key())}$transient " +
                     "<dark_gray>${region.world().name} " +
                     "$size <dark_gray>(${region.parts().size} parts)",
             )
@@ -83,6 +84,9 @@ internal class RegionCommands(
 
         Text.send(sender, "<gray>Region <aqua>${Keys.display(region.key())}")
         Text.raw(sender, "  <gray>World: <white>${region.world().name}")
+        if (region.isTransient()) {
+            Text.raw(sender, "  <yellow>Transient <dark_gray>- in memory only, gone on restart")
+        }
 
         if (region.isEmpty()) {
             Text.raw(sender, "  <dark_gray>No additive parts - this region contains nothing.")

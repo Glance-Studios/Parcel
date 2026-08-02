@@ -46,10 +46,25 @@ public interface RegionManager {
     /**
      * Creates an empty region and registers it. Use {@link Region#edit()} to give it parts.
      *
+     * <p>Persistent: it is written to storage on every edit and reloaded on the next start.
+     *
      * @throws IllegalArgumentException if a region with this key already exists
      */
     @NotNull
     Region create(@NotNull NamespacedKey key, @NotNull World world);
+
+    /**
+     * Creates an empty region that is never written to storage.
+     *
+     * <p>Identical to {@link #create} in every other respect - it is indexed, tracked, meshable and
+     * visible to {@link #at} - but it vanishes on restart and is unaffected by a reload. For
+     * geometry that is generated rather than authored.
+     *
+     * @throws IllegalArgumentException if a region with this key already exists
+     * @see Region#isTransient()
+     */
+    @NotNull
+    Region createTransient(@NotNull NamespacedKey key, @NotNull World world);
 
     /**
      * Removes a region.

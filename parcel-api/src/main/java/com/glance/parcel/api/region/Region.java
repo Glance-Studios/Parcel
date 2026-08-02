@@ -72,6 +72,19 @@ public interface Region {
     boolean isEmpty();
 
     /**
+     * Whether this region lives only in memory.
+     *
+     * <p>Transient regions are never written to storage and do not survive a restart, but are
+     * otherwise ordinary: they answer {@link RegionManager#at}, fire enter and exit events, mesh,
+     * and can be visualised. Use them for geometry that is generated rather than authored - a
+     * dungeon instance, a per-player plot, a temporary event zone - where a file on disk would
+     * outlive the thing it describes.
+     *
+     * <p>They also survive {@code /parcel reload}, which only re-reads what is on disk.
+     */
+    boolean isTransient();
+
+    /**
      * Opens an editor over this region. Changes apply on
      * {@link RegionEditor#commit()}.
      */

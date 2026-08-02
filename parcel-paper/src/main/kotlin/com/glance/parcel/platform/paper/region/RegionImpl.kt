@@ -26,6 +26,7 @@ internal class RegionImpl(
     private val key: NamespacedKey,
     private val world: World,
     parts: List<Part> = emptyList(),
+    private val transient: Boolean = false,
     private val onChanged: (RegionImpl) -> Unit = {},
 ) : Region {
 
@@ -44,6 +45,8 @@ internal class RegionImpl(
     override fun bounds(): BlockBox = cachedAdditiveBounds() ?: EMPTY_BOX
 
     override fun isEmpty(): Boolean = partList.none { it.op() == Op.ADD }
+
+    override fun isTransient(): Boolean = transient
 
     override fun contains(x: Int, y: Int, z: Int): Boolean {
         val bounds = cachedAdditiveBounds() ?: return false

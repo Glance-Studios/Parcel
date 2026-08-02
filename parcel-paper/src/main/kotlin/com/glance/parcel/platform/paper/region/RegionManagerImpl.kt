@@ -49,9 +49,15 @@ internal class RegionManagerImpl(
         )
     }
 
-    override fun create(key: NamespacedKey, world: World): Region {
+    override fun create(key: NamespacedKey, world: World): Region =
+        register(key, world, transient = false)
+
+    override fun createTransient(key: NamespacedKey, world: World): Region =
+        register(key, world, transient = true)
+
+    private fun register(key: NamespacedKey, world: World, transient: Boolean): Region {
         require(!regions.containsKey(key)) { "A region already exists under $key" }
-        val region = RegionImpl(key, world, onChanged = ::persist)
+        val region = RegionImpl(key, world, transient = transient, onChanged = ::persist)
         regions[key] = region
         plugin.server.pluginManager.callEvent(RegionCreateEvent(region))
         return region
@@ -67,6 +73,8 @@ internal class RegionManagerImpl(
 
         val removed = regions.remove(key) ?: return false
         onRegionRemoved(removed)
+        if (removed.isTransient()) return true
+
         repository.delete(removed.key()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to delete region ${removed.key()}", error)
             null
@@ -85,7 +93,10 @@ internal class RegionManagerImpl(
 
     override fun saveAll(): CompletableFuture<Void> =
         CompletableFuture.allOf(
-            *regions.values.map { repository.save(it.toRecord()) }.toTypedArray()
+            *regions.values
+                .filterNot { it.isTransient() }
+                .map { repository.save(it.toRecord()) }
+                .toTypedArray()
         )
 
     /**
@@ -95,8 +106,11 @@ internal class RegionManagerImpl(
      * lets go before the replacements arrive. Call on the main thread.
      */
     fun reload(): CompletableFuture<Int> {
-        regions.values.forEach(onRegionRemoved)
-        regions.clear()
+        // Transient regions survive: a reload re-reads what is on disk, and they were never there.
+        // Dropping them would silently destroy state belonging to whichever plugin generated them.
+        val persistent = regions.values.filterNot { it.isTransient() }
+        persistent.forEach(onRegionRemoved)
+        persistent.forEach { regions.remove(it.key()) }
         return loadAll()
     }
 
@@ -114,7 +128,9 @@ internal class RegionManagerImpl(
                 )
                 continue
             }
-            regions[record.key()] = RegionImpl(record.key(), world, record.parts(), ::persist)
+            regions[record.key()] = RegionImpl(
+                record.key(), world, record.parts(), transient = false, onChanged = ::persist,
+            )
             loaded++
         }
         loaded
@@ -126,7 +142,11 @@ internal class RegionManagerImpl(
      * anywhere is an edit everyone bound to that key needs to hear about.
      */
     private fun persist(region: RegionImpl) {
+        // The event fires either way - a transient region's shape changing matters just as much to
+        // a consumer as a saved one's. Only the write is skipped.
         plugin.server.pluginManager.callEvent(RegionModifyEvent(region))
+        if (region.isTransient()) return
+
         repository.save(region.toRecord()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to save region ${region.key()}", error)
             null
