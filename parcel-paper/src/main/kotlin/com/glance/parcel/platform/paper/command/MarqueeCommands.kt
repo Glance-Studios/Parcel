@@ -38,6 +38,11 @@ internal class MarqueeCommands(
     @Permission(PERMISSION)
     fun help(player: Player) {
         Text.send(player, "<gray>Selection tool. Commands:")
+        Text.raw(
+            player,
+            "  <aqua><click:run_command:'/parcel help'>/parcel help</click><gray> - " +
+                "the full guide, as a book",
+        )
         Text.raw(player, "  <aqua>/mq wand<gray> (or <aqua>tool<gray>) - get the wand")
         Text.raw(player, "  <aqua>/mq pos1<gray> and <aqua>/mq pos2<gray> - mark the two corners")
         Text.raw(player, "  <aqua>/mq mode <flat|volume><gray> - flat ignores Y and spans world height")

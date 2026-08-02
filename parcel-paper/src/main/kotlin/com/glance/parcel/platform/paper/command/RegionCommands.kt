@@ -47,6 +47,11 @@ internal class RegionCommands(
     @Permission(VIEW)
     fun help(sender: CommandSender) {
         Text.send(sender, "<gray>Region system. Commands:")
+        Text.raw(
+            sender,
+            "  <aqua><click:run_command:'/parcel help'>/parcel help</click><gray> - " +
+                "the full guide, as a book",
+        )
         Text.raw(sender, "  <aqua>/parcel menu<gray> - browse every region")
         Text.raw(sender, "  <aqua>/parcel list [namespace]<gray> - saved regions, as text")
         Text.raw(sender, "  <aqua>/parcel info <name><gray> - parts, bounds and who uses it")
@@ -64,6 +69,10 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
     }
+
+    @Command("parcel help|guide")
+    @Permission(VIEW)
+    fun helpBook(player: Player) = HelpBook.open(player)
 
     @Command("parcel menu|browse")
     @Permission(VIEW)
