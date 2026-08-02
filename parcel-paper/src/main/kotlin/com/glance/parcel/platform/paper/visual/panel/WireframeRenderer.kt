@@ -32,6 +32,9 @@ internal class WireframeRenderer(
         val resolution: Double,
         val lift: Double,
         val maxPoints: Int,
+        val flatOffset: Int,
+        val followRadius: Double,
+        val followOffset: Double,
     )
 
     private val active = ConcurrentHashMap<NamespacedKey, PanelStyle>()
@@ -75,13 +78,29 @@ internal class WireframeRenderer(
     }
 
     private fun draw(player: Player, region: Region, style: PanelStyle, budget: Int): Int {
-        val mesh = runCatching { region.mesh() }.getOrNull() ?: return 0
+        val mesh = runCatching { DisplayMesh.of(region, DisplayMesh.groundY(region, settings.flatOffset)) }.getOrNull() ?: return 0
         val dust = Particle.DustOptions(style.colour, style.particleSize)
 
         val px = player.location.x
         val py = player.location.y
         val pz = player.location.z
         val rangeSq = settings.range * settings.range
+
+        // Wireframe is redrawn from scratch every pass and is already per player, so following is
+        // just an offset applied at draw time - no interpolation, and each viewer gets the plane
+        // under their own feet rather than under whoever happens to be nearest.
+        val followShift = if (style.follow && DisplayMesh.isCrossSection(region)) {
+            val box = region.bounds()
+            val dx = maxOf(box.min().x() - px, 0.0, px - (box.max().x() + 1.0))
+            val dz = maxOf(box.min().z() - pz, 0.0, pz - (box.max().z() + 1.0))
+            if (dx * dx + dz * dz <= settings.followRadius * settings.followRadius) {
+                (py - settings.followOffset) - (mesh.firstOrNull()?.origin()?.y()?.toDouble() ?: py)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
 
         var used = 0
         for (quad in mesh) {
@@ -91,8 +110,9 @@ internal class WireframeRenderer(
                 style.gridSpacing.toDouble(),
                 settings.resolution,
                 settings.lift,
-            ) { x, y, z ->
+            ) { x, rawY, z ->
                 if (used < budget) {
+                    val y = rawY + followShift
                     val dx = x - px
                     val dy = y - py
                     val dz = z - pz

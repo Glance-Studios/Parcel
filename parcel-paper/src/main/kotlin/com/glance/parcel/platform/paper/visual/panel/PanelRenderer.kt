@@ -2,8 +2,10 @@ package com.glance.parcel.platform.paper.visual.panel
 
 import com.glance.parcel.api.event.RegionDeleteEvent
 import com.glance.parcel.api.event.RegionModifyEvent
+import com.glance.parcel.api.math.BlockBox
 import com.glance.parcel.api.mesh.Quad
 import com.glance.parcel.api.region.Region
+import com.glance.parcel.api.region.RegionManager
 import net.kyori.adventure.text.Component
 import org.bukkit.Color
 import org.bukkit.Location
@@ -12,10 +14,12 @@ import org.bukkit.NamespacedKey
 import org.bukkit.World
 import org.bukkit.entity.BlockDisplay
 import org.bukkit.entity.Display
+import org.bukkit.entity.Player
 import org.bukkit.entity.TextDisplay
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.plugin.Plugin
+import org.bukkit.scheduler.BukkitTask
 import org.bukkit.util.Transformation
 import org.joml.AxisAngle4f
 import org.joml.Quaternionf
@@ -42,7 +46,10 @@ internal class PanelRenderer(
     private val settings: Settings,
     private val styles: StyleStore,
     private val wireframes: WireframeRenderer,
+    private val regions: RegionManager,
 ) : Listener {
+
+    private fun regionOf(key: NamespacedKey) = regions.get(key)
 
     /** Explicit choice, then the region's stored default, then the config default. */
     fun styleFor(region: Region): PanelStyle =
@@ -58,6 +65,9 @@ internal class PanelRenderer(
          * alignment and is safe to tune without recalibrating.
          */
         val surfaceOffset: Double,
+        /** Blocks above ground to place the cross-section slab drawn for flat regions. */
+        val flatOffset: Int,
+        val follow: Follow,
         val viewRange: Float,
         val cullingPadding: Float,
         val maxPanels: Int,
@@ -81,7 +91,26 @@ internal class PanelRenderer(
         val textAnchorY: Float,
     )
 
+    /**
+     * Settings for a flat region's plane riding under the nearest player.
+     *
+     * @param radius how close a player must be for the plane to follow them
+     * @param offset how far below their feet it sits
+     * @param intervalTicks how often the target height is recalculated
+     * @param interpolationTicks how long the client is told the move takes. Deliberately longer
+     *   than [intervalTicks]: if the announced duration equals the gap, the client sits exactly on
+     *   the boundary and any late packet strands it on a finished move. Overshooting keeps it
+     *   permanently mid-lerp, so a late update re-aims it instead of stuttering.
+     */
+    data class Follow(
+        val radius: Double,
+        val offset: Double,
+        val intervalTicks: Long,
+        val interpolationTicks: Int,
+    )
+
     private val active = HashMap<NamespacedKey, List<Display>>()
+    private var followTask: BukkitTask? = null
 
     fun isShowing(region: Region): Boolean =
         active.containsKey(region.key()) || wireframes.isShowing(region.key())
@@ -96,13 +125,24 @@ internal class PanelRenderer(
         return true
     }
 
-    /** @return how many panels were spawned, or -1 if the mesh was refused as too large */
+    /**
+     * @param viewer whoever asked for this. A cross-section plane spawns at their height rather
+     *   than on the ground, so it appears where they are looking instead of somewhere below them -
+     *   which matters even with follow off, since that is then where it stays.
+     * @return how many panels were spawned, or -1 if the mesh was refused as too large
+     */
     @JvmOverloads
-    fun show(region: Region, style: PanelStyle = styleFor(region)): Int {
+    fun show(
+        region: Region,
+        style: PanelStyle = styleFor(region),
+        viewer: Player? = null,
+    ): Int {
         hide(region.key())
         if (region.isEmpty()) return 0
 
-        val mesh = runCatching { region.mesh() }.getOrNull() ?: return -1
+        val flatY = flatHeightFor(region, viewer)
+        val mesh = runCatching { DisplayMesh.of(region, flatY) }.getOrNull() ?: return -1
+        if (mesh.isEmpty()) return 0
         if (mesh.size > settings.maxPanels) return -1
 
         // Particles are re-emitted forever rather than spawned once, so that path lives elsewhere.
@@ -188,6 +228,10 @@ internal class PanelRenderer(
         display.displayWidth = width + settings.cullingPadding
         display.displayHeight = height + settings.cullingPadding
 
+        // Set once, at spawn. Changing it later would itself restart interpolation, so following
+        // planes announce their move duration up front and then only ever teleport.
+        display.teleportDuration = settings.follow.interpolationTicks
+
         display.isPersistent = false
     }
 
@@ -202,6 +246,84 @@ internal class PanelRenderer(
 
     fun hideAll() {
         active.keys.toList().forEach(::hide)
+    }
+
+    fun start() {
+        if (followTask != null) return
+        followTask = plugin.server.scheduler.runTaskTimer(
+            plugin, ::followTick, settings.follow.intervalTicks, settings.follow.intervalTicks,
+        )
+    }
+
+    fun stopFollowing() {
+        followTask?.cancel()
+        followTask = null
+    }
+
+    /**
+     * Slides following planes to sit under the nearest player.
+     *
+     * ⚠️ Only the teleport happens here. Touching the transformation, or any other metadata, would
+     * restart the client's interpolation and turn a glide into a stutter - the single most
+     * important rule when driving display entities.
+     */
+    private fun followTick() {
+        if (active.isEmpty()) return
+
+        for ((key, displays) in active) {
+            if (displays.isEmpty()) continue
+            val region = regionOf(key) ?: continue
+            val style = styleFor(region)
+            if (!style.follow || !DisplayMesh.isCrossSection(region)) continue
+
+            val target = targetHeight(region, displays.first()) ?: continue
+            for (display in displays) {
+                val at = display.location
+                // A hair of hysteresis: without it, a player bobbing on a jump re-teleports every
+                // pass and the plane never settles.
+                if (kotlin.math.abs(at.y - target) < 0.05) continue
+                display.teleport(at.clone().apply { y = target })
+            }
+        }
+    }
+
+    /**
+     * Where a cross-section plane starts: under whoever asked, else under the nearest player in
+     * range, else on the ground.
+     */
+    private fun flatHeightFor(region: Region, viewer: Player?): Int {
+        if (!DisplayMesh.isCrossSection(region)) return DisplayMesh.groundY(region, settings.flatOffset)
+
+        val subject = viewer?.takeIf { it.world == region.world() }
+            ?: nearestPlayer(region)
+            ?: return DisplayMesh.groundY(region, settings.flatOffset)
+
+        return Math.floor(subject.location.y - settings.follow.offset).toInt()
+    }
+
+    private fun nearestPlayer(region: Region): Player? = plugin.server.onlinePlayers
+        .filter { it.world == region.world() }
+        .filter { withinRadius(it.location.x, it.location.z, region.bounds()) }
+        .minByOrNull { it.location.y }
+
+    private fun targetHeight(region: Region, sample: Display): Double? {
+        val world = region.world()
+        val nearest = plugin.server.onlinePlayers
+            .filter { it.world == world }
+            .filter { region.bounds().let { b -> withinRadius(it.location.x, it.location.z, b) } }
+            .minByOrNull { it.location.distanceSquared(sample.location) }
+            ?: return null
+
+        return nearest.location.y - settings.follow.offset
+    }
+
+    private fun withinRadius(x: Double, z: Double, box: BlockBox): Boolean {
+        // Distance to the footprint, not to its centre - a long region should follow you anywhere
+        // along it, not only near the middle.
+        val dx = maxOf(box.min().x() - x, 0.0, x - (box.max().x() + 1.0))
+        val dz = maxOf(box.min().z() - z, 0.0, z - (box.max().z() + 1.0))
+        val r = settings.follow.radius
+        return dx * dx + dz * dz <= r * r
     }
 
     /**

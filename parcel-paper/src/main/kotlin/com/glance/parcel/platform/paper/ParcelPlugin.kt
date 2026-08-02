@@ -4,6 +4,7 @@ import com.glance.parcel.api.ParcelAPI
 import com.glance.parcel.api.event.ParcelReadyEvent
 import com.glance.parcel.platform.paper.command.DevCommands
 import com.glance.parcel.platform.paper.command.MarqueeCommands
+import com.glance.parcel.platform.paper.menu.RegionBrowser
 import com.glance.parcel.platform.paper.command.ParcelCommandManager
 import com.glance.parcel.platform.paper.command.RegionCommands
 import com.glance.parcel.platform.paper.marquee.MarqueeListener
@@ -87,6 +88,9 @@ class ParcelPlugin : JavaPlugin() {
                 resolution = config.getDouble("panels.wireframe.resolution", 0.5),
                 lift = config.getDouble("panels.surface-offset", 0.01),
                 maxPoints = config.getInt("panels.wireframe.max-points", 900),
+                flatOffset = config.getInt("panels.flat-offset", 1),
+                followRadius = config.getDouble("panels.follow.radius", 32.0),
+                followOffset = config.getDouble("panels.follow.offset", 3.0),
             ),
         )
 
@@ -94,6 +98,7 @@ class ParcelPlugin : JavaPlugin() {
             plugin = this,
             styles = styles,
             wireframes = wireframes,
+            regions = regions,
             settings = PanelRenderer.Settings(
                 defaultStyle = PanelStyle(
                     primitive = runCatching {
@@ -111,9 +116,17 @@ class ParcelPlugin : JavaPlugin() {
                 ),
                 thickness = config.getDouble("panels.thickness", 0.02).toFloat(),
                 surfaceOffset = config.getDouble("panels.surface-offset", 0.01),
+                flatOffset = config.getInt("panels.flat-offset", 1),
                 viewRange = config.getDouble("panels.view-range", 4.0).toFloat(),
                 cullingPadding = config.getDouble("panels.culling-padding", 2.0).toFloat(),
                 maxPanels = config.getInt("panels.max-panels", 512),
+                follow = PanelRenderer.Follow(
+                    radius = config.getDouble("panels.follow.radius", 32.0),
+                    offset = config.getDouble("panels.follow.offset", 3.0),
+                    intervalTicks = config.getLong("panels.follow.interval-ticks", 5L)
+                        .coerceAtLeast(1L),
+                    interpolationTicks = config.getInt("panels.follow.interpolation-ticks", 9),
+                ),
                 // Measured with /parcel calibrate on 1.21.11 - see config.yml for why these are
                 // exact eighths and quarters rather than round-ish numbers.
                 textBaseWidth = config.getDouble("panels.text-base-width", 0.125).toFloat(),
@@ -126,9 +139,14 @@ class ParcelPlugin : JavaPlugin() {
 
         val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
 
+        val browser = RegionBrowser(this, regions, panels, styleDialog)
+        server.pluginManager.registerEvents(browser, this)
+
         val commands = ParcelCommandManager(this)
         commands.register(
-            RegionCommands(this, regions, selections, outlines, panels, styles, styleDialog),
+            RegionCommands(
+                this, regions, selections, outlines, panels, styles, styleDialog, browser,
+            ),
             MarqueeCommands(selections, wand),
         )
 
@@ -163,6 +181,7 @@ class ParcelPlugin : JavaPlugin() {
                 tracker.start()
                 if (config.getBoolean("outline.enabled", true)) outlines.start()
                 wireframes.start()
+                panels.start()
                 server.pluginManager.callEvent(ParcelReadyEvent(api))
             })
         }
@@ -177,6 +196,9 @@ class ParcelPlugin : JavaPlugin() {
         }
         if (::wireframes.isInitialized) {
             wireframes.stop()
+        }
+        if (::panels.isInitialized) {
+            panels.stopFollowing()
         }
         if (::panels.isInitialized) {
             // Non-persistent displays would not survive a restart anyway, but leaving them for a

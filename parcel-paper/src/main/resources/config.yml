@@ -71,6 +71,32 @@ panels:
   # raise without recalibrating anything.
   surface-offset: 0.01
 
+  # Flat regions span the world's full height, so drawing their real surface gives a floor at
+  # bedrock, a ceiling at the build limit and four walls hundreds of blocks tall - correct, and
+  # useless. They are drawn as a CROSS-SECTION instead: a one-block slab at ground level that
+  # blankets the footprint. This is how far above the surface that slab sits.
+  # Only affects what is drawn; the region's real geometry is untouched.
+  flat-offset: 1
+
+  # A flat region's plane can ride under the nearest player instead of sitting at ground level, so
+  # its footprint stays readable while you fly rather than being buried in terrain.
+  # Enable per region with the "Follow player height" toggle in /parcel style.
+  follow:
+    # How close a player must be to the FOOTPRINT (not its centre) for the plane to follow.
+    radius: 32.0
+
+    # How far below their feet it sits.
+    offset: 3.0
+
+    # How often the target height is recalculated.
+    interval-ticks: 5
+
+    # How long the client is told each move takes. Deliberately LONGER than interval-ticks: if the
+    # announced duration equals the gap, the client sits exactly on the boundary and any late
+    # packet strands it on a finished move. Overshooting keeps it mid-interpolation, so a late
+    # update re-aims it instead of stuttering. Costs a constant lag equal to the overshoot.
+    interpolation-ticks: 9
+
   # How far away panels stay rendered. This is a multiplier on the client's entity render distance,
   # not blocks - the default of 1.0 is far too short for something you stand inside.
   view-range: 4.0

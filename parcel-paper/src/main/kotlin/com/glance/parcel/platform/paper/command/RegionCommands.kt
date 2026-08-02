@@ -4,7 +4,9 @@ import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
+import com.glance.parcel.platform.paper.menu.RegionBrowser
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
+import com.glance.parcel.platform.paper.visual.panel.DisplayMesh
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
 import com.glance.parcel.platform.paper.visual.panel.PanelStyleDialog
 import com.glance.parcel.platform.paper.visual.panel.StyleStore
@@ -34,6 +36,7 @@ internal class RegionCommands(
     private val panels: PanelRenderer,
     private val styles: StyleStore,
     private val styleDialog: PanelStyleDialog,
+    private val browser: RegionBrowser,
 ) {
 
     @Suggestions("region-keys")
@@ -44,7 +47,8 @@ internal class RegionCommands(
     @Permission(VIEW)
     fun help(sender: CommandSender) {
         Text.send(sender, "<gray>Region system. Commands:")
-        Text.raw(sender, "  <aqua>/parcel list [namespace]<gray> - saved regions")
+        Text.raw(sender, "  <aqua>/parcel menu<gray> - browse every region")
+        Text.raw(sender, "  <aqua>/parcel list [namespace]<gray> - saved regions, as text")
         Text.raw(sender, "  <aqua>/parcel info <name><gray> - parts, bounds and who uses it")
         Text.raw(sender, "  <aqua>/parcel create<gray> (or <aqua>save<gray>) <aqua><name><gray> - save your selection as a new region")
         Text.raw(sender, "  <aqua>/parcel load <name><gray> - pull a region into your selection to edit")
@@ -59,6 +63,10 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
     }
+
+    @Command("parcel menu|browse")
+    @Permission(VIEW)
+    fun menu(player: Player) = browser.open(player)
 
     @Command("parcel list [namespace]")
     @Permission(VIEW)
@@ -177,11 +185,24 @@ internal class RegionCommands(
         }
 
         val region = selections.promote(player, key)
+
+        // Render it straight away. Promoting clears the selection, so its outline vanishes at the
+        // same moment - without this the shape you just spent time on disappears off the screen
+        // and you have to ask for it back.
+        val panelCount = panels.show(region, viewer = player)
+
         Text.send(
             player,
             "<gray>Created <aqua>${Keys.display(key)}<gray> from " +
                 "<white>${region.parts().size}<gray> part(s). Your selection has been cleared.",
         )
+        if (panelCount > 0) {
+            Text.raw(
+                player,
+                "  <dark_gray>Rendering it now. <gray>/parcel render ${Keys.display(key)}" +
+                    "<dark_gray> to toggle, <gray>/parcel style ${Keys.display(key)}<dark_gray> to recolour.",
+            )
+        }
     }
 
     @Command("parcel apply <name>")
@@ -210,8 +231,7 @@ internal class RegionCommands(
             return
         }
 
-        Text.send(player, "<gray>Reshaped <aqua>${Keys.display(region.key())}<gray>.")
-        warnShared(player, region, usages)
+        finish(player, region, "Reshaped", usages)
     }
 
     @Command("parcel load <name>")
@@ -290,18 +310,33 @@ internal class RegionCommands(
         val before = region.parts().size
         selection.appendTo(region)
 
-        Text.send(
-            player,
-            "<gray>Added <white>${region.parts().size - before}<gray> part(s) to " +
-                "<aqua>${Keys.display(region.key())}<gray>.",
-        )
-        warnShared(player, region, usages)
+        finish(player, region, "Added ${region.parts().size - before} part(s) to", usages)
     }
 
-    private fun warnShared(player: Player, region: Region, usages: List<String>) {
-        if (usages.isEmpty()) return
-        Text.raw(player, "  <yellow>This region is shared. Also affects:")
-        usages.forEach { Text.raw(player, "    <dark_gray>- <gray>$it") }
+    /**
+     * Every write to a region ends the same way: the change is already committed and saved, so the
+     * selection has done its job and goes, and the region is rendered in its place.
+     *
+     * Leaving the selection up after a write was actively misleading - its particles look exactly
+     * like pending work, when in fact there is nothing left to save.
+     */
+    private fun finish(player: Player, region: Region, verb: String, usages: List<String>) {
+        selections.clear(player)
+        panels.show(region, viewer = player)
+
+        Text.send(
+            player,
+            "<gray>$verb <aqua>${Keys.display(region.key())}<gray>. " +
+                "<dark_gray>Saved, selection cleared.",
+        )
+        if (usages.isNotEmpty()) {
+            Text.raw(player, "  <yellow>This region is shared. Also affects:")
+            usages.forEach { Text.raw(player, "    <dark_gray>- <gray>$it") }
+        }
+        Text.raw(
+            player,
+            "  <dark_gray>Edit it again with <gray>/parcel load ${Keys.display(region.key())}",
+        )
     }
 
     @Command("parcel delete <name>")
@@ -378,7 +413,7 @@ internal class RegionCommands(
             Text.error(player, "${Keys.display(region.key())} has no stored style.")
             return
         }
-        if (panels.isShowing(region)) panels.show(region)
+        if (panels.isShowing(region)) panels.show(region, viewer = player)
         Text.send(player, "<gray>Cleared the stored style for <aqua>${Keys.display(region.key())}<gray>.")
     }
 
@@ -396,7 +431,7 @@ internal class RegionCommands(
             return
         }
 
-        when (val count = panels.show(region)) {
+        when (val count = panels.show(region, viewer = sender as? Player)) {
             -1 -> Text.error(sender, "${Keys.display(region.key())} is too large to render.")
             0 -> Text.error(sender, "${Keys.display(region.key())} has no shape to render.")
             else -> Text.send(
@@ -419,16 +454,24 @@ internal class RegionCommands(
             return
         }
 
-        // Above the top face and centred, so you arrive looking at the whole thing rather than
-        // inside it. Prisms span the world height, so clamp into something survivable.
         val box = region.bounds()
         val world = region.world()
-        val y = (box.max().y() + 3).coerceIn(world.minHeight + 1, world.maxHeight - 2)
+        val centreX = box.min().x() + box.sizeX() / 2
+        val centreZ = box.min().z() + box.sizeZ() / 2
+
+        // Above the top face and centred, so you arrive looking at the whole thing rather than
+        // inside it. A flat region's top face is the build limit, though, which would drop you in
+        // the sky miles from anything - so those go to ground level instead.
+        val y = if (DisplayMesh.isCrossSection(region)) {
+            world.getHighestBlockYAt(centreX, centreZ) + 3
+        } else {
+            box.max().y() + 3
+        }.coerceIn(world.minHeight + 1, world.maxHeight - 2)
         val target = Location(
             world,
-            box.min().x() + box.sizeX() / 2.0,
+            centreX + 0.5,
             y.toDouble(),
-            box.min().z() + box.sizeZ() / 2.0,
+            centreZ + 0.5,
         ).apply { pitch = 45f }
 
         player.teleport(target)

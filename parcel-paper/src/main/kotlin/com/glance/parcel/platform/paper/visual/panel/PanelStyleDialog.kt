@@ -79,6 +79,13 @@ internal class PanelStyleDialog(
                             // current colour, so "hex wins when non-empty" would mean the sliders
                             // never did anything. Which source to use has to be said explicitly.
                             DialogInput.bool(
+                                "follow",
+                                mm.deserialize("<gray>Follow player height (flat only)"),
+                                style.follow,
+                                "true",
+                                "false",
+                            ),
+                            DialogInput.bool(
                                 "use_hex",
                                 mm.deserialize("<gray>Use hex instead of sliders"),
                                 false,
@@ -169,6 +176,7 @@ internal class PanelStyleDialog(
             alpha = view.getFloat("alpha")?.toInt() ?: fallback.alpha,
             gridSpacing = view.getFloat("grid") ?: fallback.gridSpacing,
             particleSize = fallback.particleSize,
+            follow = view.getBoolean("follow") ?: fallback.follow,
         )
     }
 
@@ -176,7 +184,7 @@ internal class PanelStyleDialog(
         // Callbacks land off the main thread and everything below touches entities or config.
         plugin.server.scheduler.runTask(plugin, Runnable {
             if (persist) styles.set(region.key(), style)
-            panels.show(region, style)
+            panels.show(region, style, viewer = player)
 
             val what = if (persist) "Saved" else "Previewing"
             Text.send(

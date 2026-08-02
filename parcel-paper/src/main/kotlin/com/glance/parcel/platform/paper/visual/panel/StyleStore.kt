@@ -36,6 +36,7 @@ internal class StyleStore(private val file: File) {
                 alpha = section.getInt("alpha", 90).coerceIn(0, 255),
                 gridSpacing = section.getDouble("grid-spacing", 1.0).toFloat().coerceIn(0.25f, 8f),
                 particleSize = section.getDouble("particle-size", 0.6).toFloat(),
+                follow = section.getBoolean("follow", true),
             )
         }
     }
@@ -63,6 +64,7 @@ internal class StyleStore(private val file: File) {
             yaml.set("$key.alpha", style.alpha)
             yaml.set("$key.grid-spacing", style.gridSpacing)
             yaml.set("$key.particle-size", style.particleSize)
+            yaml.set("$key.follow", style.follow)
         }
         file.parentFile?.mkdirs()
         yaml.save(file)

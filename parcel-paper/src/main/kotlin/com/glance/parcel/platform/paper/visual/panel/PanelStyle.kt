@@ -21,6 +21,12 @@ internal data class PanelStyle(
     val gridSpacing: Float = 1f,
     /** Particle size for wireframe lines. */
     val particleSize: Float = 0.6f,
+    /**
+     * Whether a flat region's plane rides under the nearest player's feet instead of sitting at
+     * ground level. Ignored by regions that are not drawn as a cross-section - a bounded box has a
+     * real surface to sit on.
+     */
+    val follow: Boolean = true,
 ) {
     val colour: Color get() = Color.fromRGB(red, green, blue)
 
