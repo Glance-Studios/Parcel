@@ -24,13 +24,14 @@ import org.bukkit.World
 internal class SelectionImpl(
     private val world: World,
     private val regions: RegionManager,
+    defaultMode: SelectionMode = SelectionMode.FLAT,
 ) : Selection {
 
     private val committed = ArrayList<Part>()
 
     private var cornerA: BlockPos? = null
     private var cornerB: BlockPos? = null
-    private var selectionMode = SelectionMode.VOLUME
+    private var selectionMode = defaultMode
 
     override fun world(): World = world
 

@@ -2,6 +2,7 @@ package com.glance.parcel.platform.paper
 
 import com.glance.parcel.api.ParcelAPI
 import com.glance.parcel.api.event.ParcelReadyEvent
+import com.glance.parcel.api.selection.SelectionMode
 import com.glance.parcel.platform.paper.command.DevCommands
 import com.glance.parcel.platform.paper.command.MarqueeCommands
 import com.glance.parcel.platform.paper.menu.RegionBrowser
@@ -48,7 +49,17 @@ class ParcelPlugin : JavaPlugin() {
         val repository = YamlRegionRepository(File(dataFolder, "regions"))
         regions = RegionManagerImpl(this, repository)
 
-        val selections = SelectionManagerImpl(regions)
+        val selections = SelectionManagerImpl(
+            regions,
+            defaultMode = runCatching {
+                SelectionMode.valueOf(
+                    (config.getString("marquee.default-mode") ?: "FLAT").uppercase()
+                )
+            }.getOrElse {
+                logger.warning("Unknown marquee.default-mode, falling back to FLAT")
+                SelectionMode.FLAT
+            },
+        )
         val api = ParcelAPIImpl(regions, selections)
 
         server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)

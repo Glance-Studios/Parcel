@@ -21,6 +21,14 @@ marquee:
   # impersonate it and an ordinary axe is unaffected.
   wand-material: GOLDEN_AXE
 
+  # What a new selection starts as.
+  #   FLAT   - a footprint spanning the full world height. Y is ignored when marking corners.
+  #   VOLUME - a bounded box, using both corners' Y.
+  # FLAT by default because most regions are areas of the map rather than boxes floating in it, and
+  # getting the Y wrong on a volume is invisible until something fails to trigger.
+  # Change per selection with /mq mode.
+  default-mode: FLAT
+
   # Logs every wand interaction with its action, hand and sneak state. Bindings that "do nothing"
   # are almost always an event that never arrived or arrived with different state than expected,
   # and this says which.

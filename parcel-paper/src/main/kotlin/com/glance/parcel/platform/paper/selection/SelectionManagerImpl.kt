@@ -4,6 +4,7 @@ import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
 import com.glance.parcel.api.selection.Selection
 import com.glance.parcel.api.selection.SelectionManager
+import com.glance.parcel.api.selection.SelectionMode
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 internal class SelectionManagerImpl(
     private val regions: RegionManager,
+    private val defaultMode: SelectionMode = SelectionMode.FLAT,
 ) : SelectionManager {
 
     private val selections = ConcurrentHashMap<UUID, SelectionImpl>()
@@ -43,7 +45,8 @@ internal class SelectionManagerImpl(
     fun get(player: Player): SelectionImpl {
         val existing = selections[player.uniqueId]
         if (existing != null && existing.world() == player.world) return existing
-        return SelectionImpl(player.world, regions).also { selections[player.uniqueId] = it }
+        return SelectionImpl(player.world, regions, defaultMode)
+            .also { selections[player.uniqueId] = it }
     }
 
     fun forget(player: Player) {
