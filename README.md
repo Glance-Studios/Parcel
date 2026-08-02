@@ -23,8 +23,31 @@ gets the stdlib at runtime through Paper's library loader, not by shading.
 
 ## Using it from another plugin
 
+The API is published to GitHub Packages. Only the API - the plugin jar is a server artifact, and
+publishing it would invite people to depend on internals that are deliberately `internal`.
+
+```kotlin
+repositories {
+    maven("https://maven.pkg.github.com/Glance-Studios/Parcel") {
+        credentials {
+            username = project.findProperty("gpr.user") as String? ?: System.getenv("GPR_USER")
+            password = project.findProperty("gpr.key") as String? ?: System.getenv("GPR_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    compileOnly("com.glance.parcel:parcel-api:0.1.0")
+}
+```
+
+`compileOnly` - the API classes ship inside the Parcel plugin jar, so shading them into yours would
+put two copies on the classpath. Declare Parcel as a dependency in your plugin descriptor so load
+order is guaranteed.
+
+The API is **Java**, so you inherit no kotlin-stdlib requirement even though the plugin is Kotlin.
+
 ```java
-// compileOnly com.glance.parcel:parcel-api
 
 Region region = Parcel.api().regions().get(new NamespacedKey(this, "tavern"));
 boolean inside = region.contains(player.getLocation());
