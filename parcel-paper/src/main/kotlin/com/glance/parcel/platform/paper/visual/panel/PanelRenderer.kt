@@ -40,11 +40,16 @@ import org.joml.Vector3f
 internal class PanelRenderer(
     private val plugin: Plugin,
     private val settings: Settings,
+    private val styles: StyleStore,
 ) : Listener {
 
+    /** Explicit choice, then the region's stored default, then the config default. */
+    fun styleFor(region: Region): PanelStyle =
+        styles.get(region.key()) ?: settings.defaultStyle
+
+    fun settingsDefaultStyle(): PanelStyle = settings.defaultStyle
+
     data class Settings(
-        val primitive: PanelPrimitive,
-        val material: Material,
         val thickness: Float,
         /**
          * Lift off the covered surface, along the face normal. Purely a depth nudge: the normal is
@@ -55,9 +60,8 @@ internal class PanelRenderer(
         val viewRange: Float,
         val cullingPadding: Float,
         val maxPanels: Int,
-        /** ARGB. The alpha channel is what makes a text panel see-through. */
-        val colour: Color,
-        val alpha: Int,
+        /** Fallback when a region has no stored style of its own. */
+        val defaultStyle: PanelStyle,
         /**
          * Size in blocks of an empty text display's background at scale 1. Measured rather than
          * derived - a text display's quad is sized by its glyphs and padding, so covering an exact
@@ -91,7 +95,8 @@ internal class PanelRenderer(
     }
 
     /** @return how many panels were spawned, or -1 if the mesh was refused as too large */
-    fun show(region: Region): Int {
+    @JvmOverloads
+    fun show(region: Region, style: PanelStyle = styleFor(region)): Int {
         hide(region.key())
         if (region.isEmpty()) return 0
 
@@ -99,14 +104,14 @@ internal class PanelRenderer(
         if (mesh.size > settings.maxPanels) return -1
 
         val world = region.world()
-        val displays = when (settings.primitive) {
-            PanelPrimitive.BLOCK -> mesh.map { spawnBlockPanel(world, it) }
+        val displays = when (style.primitive) {
+            PanelPrimitive.BLOCK -> mesh.map { spawnBlockPanel(world, it, style) }
             // Two per quad: a text display renders from one side only.
             PanelPrimitive.TEXT -> mesh.flatMap { quad ->
                 val p = Panels.textPlacementFor(quad, settings.surfaceOffset)
                 listOf(
-                    spawnTextPanel(world, p, p.rotation),
-                    spawnTextPanel(world, p, Panels.mirrored(p.rotation)),
+                    spawnTextPanel(world, p, p.rotation, style),
+                    spawnTextPanel(world, p, Panels.mirrored(p.rotation), style),
                 )
             }
         }
@@ -115,10 +120,12 @@ internal class PanelRenderer(
         return displays.size
     }
 
-    private fun spawnBlockPanel(world: World, quad: Quad): BlockDisplay {
+    private fun spawnBlockPanel(world: World, quad: Quad, style: PanelStyle): BlockDisplay {
         val p = Panels.placementFor(quad, settings.thickness, settings.surfaceOffset)
         return world.spawn(Location(world, p.x, p.y, p.z), BlockDisplay::class.java) { display ->
-            display.block = settings.material.createBlockData()
+            // Block displays cannot take an arbitrary colour, so honour the request as closely as
+            // the glass palette allows rather than ignoring it.
+            display.block = GlassPalette.nearest(style.colour).createBlockData()
             display.transformation = Transformation(
                 Vector3f(p.tx, p.ty, p.tz),
                 AxisAngle4f(),
@@ -133,18 +140,14 @@ internal class PanelRenderer(
         world: World,
         p: TextPanelPlacement,
         rotation: Quaternionf,
+        style: PanelStyle,
     ): TextDisplay = world.spawn(
         Location(world, p.x, p.y, p.z),
         TextDisplay::class.java,
     ) { display ->
         // A single space, so only the background quad renders - no glyph, no shadow.
         display.text(Component.text(" "))
-        display.backgroundColor = Color.fromARGB(
-            settings.alpha,
-            settings.colour.red,
-            settings.colour.green,
-            settings.colour.blue,
-        )
+        display.backgroundColor = style.argb
         display.billboard = Display.Billboard.FIXED
         display.isSeeThrough = false
         display.isShadowed = false
