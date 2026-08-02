@@ -2,6 +2,7 @@ package com.glance.parcel.platform.paper.selection
 
 import com.glance.parcel.api.math.BlockBox
 import com.glance.parcel.api.math.BlockPos
+import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Part
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
@@ -57,13 +58,37 @@ internal class SelectionImpl(
 
     override fun applyTo(region: Region): Region {
         check(committed.isNotEmpty()) { "Cannot apply an empty selection to a region" }
-        require(region.world() == world) {
-            "Selection is in ${world.name} but ${region.key()} is in ${region.world().name}"
+        requireSameWorld(region)
+
+        // Replacing a region with a selection that has no additive parts leaves it containing
+        // nothing at all. That is never what someone means - they meant to carve into what is
+        // already there - so refuse rather than silently emptying a region other plugins may be
+        // bound to.
+        check(committed.any { it.op() == Op.ADD }) {
+            "That selection is only carves, so applying it would leave ${region.key()} empty. " +
+                "Append instead to carve into it."
         }
 
         val editor = region.edit().clear()
         committed.forEach(editor::addPart)
         return editor.commit()
+    }
+
+    override fun appendTo(region: Region): Region {
+        check(committed.isNotEmpty()) { "Cannot append an empty selection to a region" }
+        requireSameWorld(region)
+
+        // Order matters: appended parts evaluate after the existing ones, so a carve lands on top
+        // of what is already there. That is exactly the semantic wanted.
+        val editor = region.edit()
+        committed.forEach(editor::addPart)
+        return editor.commit()
+    }
+
+    private fun requireSameWorld(region: Region) {
+        require(region.world() == world) {
+            "Selection is in ${world.name} but ${region.key()} is in ${region.world().name}"
+        }
     }
 
     fun setCornerA(pos: BlockPos) {

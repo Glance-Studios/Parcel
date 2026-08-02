@@ -79,6 +79,21 @@ public interface Selection {
     Region toRegion(@NotNull NamespacedKey key);
 
     /**
+     * Appends this selection's parts onto an existing region, keeping what is already there.
+     *
+     * <p>This is what carving into a saved region means: mark a shape, carve it, append. Using
+     * {@link #applyTo} for that would <em>replace</em> the region with just the carve, leaving it
+     * with no additive parts and therefore containing nothing.
+     *
+     * <p>Fires {@link com.glance.parcel.api.event.RegionModifyEvent}.
+     *
+     * @throws IllegalStateException    if the selection is empty
+     * @throws IllegalArgumentException if the region belongs to another world
+     */
+    @NotNull
+    Region appendTo(@NotNull Region region);
+
+    /**
      * Replaces an existing region's parts with this selection's.
      *
      * <p>This is the counterpart to {@link SelectionManager#load}, and it is the normal way to edit
@@ -88,7 +103,10 @@ public interface Selection {
      *
      * <p>Fires {@link com.glance.parcel.api.event.RegionModifyEvent}.
      *
-     * @throws IllegalStateException    if the selection is empty
+     * @throws IllegalStateException    if the selection is empty, or if the result would have no
+     *                                  additive parts - a region of pure subtractions contains
+     *                                  nothing, so that is a mistake rather than an intent. Use
+     *                                  {@link #appendTo} to carve into an existing region.
      * @throws IllegalArgumentException if the region belongs to another world
      */
     @NotNull
