@@ -44,8 +44,17 @@ tasks {
         archiveClassifier.set("")
     }
 
+    // Drop the finished plugin at the repo root rather than leaving it buried in
+    // parcel-paper/build/libs. Same convention as Codex - one predictable path to copy from,
+    // whether that is a deploy script or a drag into a plugins folder.
+    val exportJar by registering(Copy::class) {
+        from(shadowJar.flatMap { it.archiveFile })
+        into(rootProject.layout.projectDirectory.dir("target"))
+    }
+
     build {
         dependsOn(shadowJar)
+        finalizedBy(exportJar)
     }
 
     test {

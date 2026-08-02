@@ -102,4 +102,37 @@ consumers are free to draw them however they like.
 ./gradlew build
 ```
 
-Java 21. The plugin jar lands in `parcel-paper/build/libs/`.
+Java 21. The finished plugin is copied to **`target/parcel-paper-<version>.jar`** at the repo root -
+one predictable path to deploy from, rather than reaching into `parcel-paper/build/libs`.
+
+`target/` is generated and gitignored; the build overwrites it every time.
+
+Drop that jar into a Paper 1.21.11 server's `plugins/` folder. Nothing else is required - the
+runtime libraries (kotlin-stdlib, Cloud) are resolved on first start by the plugin's bootstrap
+loader rather than being shaded in.
+
+### First run
+
+`config.yml` is written on first start and **kept up to date on later ones**: if a version adds
+options, the file is rewritten from the shipped default with your values re-applied, and the
+previous copy saved as `config.yml.bak`. New options therefore arrive with their documentation
+intact. The trade is that the file is re-ordered to match the default and any comments you added
+yourself are lost - hence the backup.
+
+Everything lives under `plugins/Parcel/`:
+
+| | |
+|---|---|
+| `config.yml` | options, heavily commented |
+| `regions/<namespace>/<key>.yml` | the regions themselves, purely geometric |
+| `history/<namespace>/<key>.yml` | previous shapes, for `/parcel undo` |
+| `styles.yml` | per-region colour and render settings |
+
+Regions, history and styles are separate on purpose: a region's file stays current-state only, so a
+corrupt or deleted style or history can never damage the geometry it describes.
+
+## Learning it
+
+`/parcel help` opens an in-game guide. It leads with the concepts rather than the command list,
+because the commands are the easy part - a region being a *list of parts* rather than a shape, and
+the difference between `apply` and `append`, are what actually catch people out.
