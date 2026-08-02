@@ -6,7 +6,9 @@ import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
 import com.glance.parcel.platform.paper.visual.panel.PanelCalibration
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
+import com.glance.parcel.platform.paper.visual.panel.PanelStyleDialog
 import com.glance.parcel.platform.paper.visual.panel.StepTarget
+import com.glance.parcel.platform.paper.visual.panel.StyleStore
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -32,6 +34,8 @@ internal class RegionCommands(
     private val outlines: OutlineRenderer,
     private val panels: PanelRenderer,
     private val calibration: PanelCalibration,
+    private val styles: StyleStore,
+    private val styleDialog: PanelStyleDialog,
 ) {
 
     @Suggestions("region-keys")
@@ -50,6 +54,7 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
         Text.raw(sender, "  <aqua>/parcel render <name><gray> - toggle solid panels on its surface")
+        Text.raw(sender, "  <aqua>/parcel style <name><gray> - colour and opacity, with sliders")
         Text.raw(sender, "  <aqua>/parcel goto <name><gray> - teleport to it")
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
@@ -254,6 +259,31 @@ internal class RegionCommands(
         if (region.world() != player.world) {
             Text.raw(player, "  <yellow>It is in ${region.world().name} - /parcel goto to fly there.")
         }
+    }
+
+    @Command("parcel style <name>")
+    @Permission(EDIT)
+    fun style(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(player, name) ?: return
+        styleDialog.open(player, region)
+    }
+
+    @Command("parcel style <name> clear")
+    @Permission(EDIT)
+    fun styleClear(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(player, name) ?: return
+        if (!styles.clear(region.key())) {
+            Text.error(player, "${Keys.display(region.key())} has no stored style.")
+            return
+        }
+        if (panels.isShowing(region)) panels.show(region)
+        Text.send(player, "<gray>Cleared the stored style for <aqua>${Keys.display(region.key())}<gray>.")
     }
 
     @Command("parcel calibrate")

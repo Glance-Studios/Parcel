@@ -15,7 +15,9 @@ import com.glance.parcel.platform.paper.visual.OutlineRenderer
 import com.glance.parcel.platform.paper.visual.panel.PanelCalibration
 import com.glance.parcel.platform.paper.visual.panel.PanelPrimitive
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
-import org.bukkit.Color
+import com.glance.parcel.platform.paper.visual.panel.PanelStyle
+import com.glance.parcel.platform.paper.visual.panel.PanelStyleDialog
+import com.glance.parcel.platform.paper.visual.panel.StyleStore
 import org.bukkit.Material
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
@@ -34,6 +36,7 @@ class ParcelPlugin : JavaPlugin() {
     private lateinit var outlines: OutlineRenderer
     private lateinit var panels: PanelRenderer
     private lateinit var calibration: PanelCalibration
+    private lateinit var styles: StyleStore
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -70,31 +73,31 @@ class ParcelPlugin : JavaPlugin() {
             this,
         )
 
+        styles = StyleStore(File(dataFolder, "styles.yml")).apply { load() }
+
         panels = PanelRenderer(
             plugin = this,
+            styles = styles,
             settings = PanelRenderer.Settings(
-                primitive = runCatching {
-                    PanelPrimitive.valueOf(
-                        (config.getString("panels.primitive") ?: "TEXT").uppercase()
-                    )
-                }.getOrElse {
-                    logger.warning("Unknown panels.primitive, falling back to TEXT")
-                    PanelPrimitive.TEXT
-                },
-                material = Material.matchMaterial(
-                    config.getString("panels.material") ?: "LIGHT_BLUE_STAINED_GLASS"
-                ) ?: Material.LIGHT_BLUE_STAINED_GLASS,
+                defaultStyle = PanelStyle(
+                    primitive = runCatching {
+                        PanelPrimitive.valueOf(
+                            (config.getString("panels.primitive") ?: "TEXT").uppercase()
+                        )
+                    }.getOrElse {
+                        logger.warning("Unknown panels.primitive, falling back to TEXT")
+                        PanelPrimitive.TEXT
+                    },
+                    red = config.getInt("panels.colour.red", 85).coerceIn(0, 255),
+                    green = config.getInt("panels.colour.green", 200).coerceIn(0, 255),
+                    blue = config.getInt("panels.colour.blue", 255).coerceIn(0, 255),
+                    alpha = config.getInt("panels.colour.alpha", 90).coerceIn(0, 255),
+                ),
                 thickness = config.getDouble("panels.thickness", 0.02).toFloat(),
                 surfaceOffset = config.getDouble("panels.surface-offset", 0.01),
                 viewRange = config.getDouble("panels.view-range", 4.0).toFloat(),
                 cullingPadding = config.getDouble("panels.culling-padding", 2.0).toFloat(),
                 maxPanels = config.getInt("panels.max-panels", 512),
-                colour = Color.fromRGB(
-                    config.getInt("panels.colour.red", 85),
-                    config.getInt("panels.colour.green", 200),
-                    config.getInt("panels.colour.blue", 255),
-                ),
-                alpha = config.getInt("panels.colour.alpha", 90).coerceIn(0, 255),
                 // Measured with /parcel calibrate on 1.21.11 - see config.yml for why these are
                 // exact eighths and quarters rather than round-ish numbers.
                 textBaseWidth = config.getDouble("panels.text-base-width", 0.125).toFloat(),
@@ -108,8 +111,12 @@ class ParcelPlugin : JavaPlugin() {
         calibration = PanelCalibration(this)
         server.pluginManager.registerEvents(calibration, this)
 
+        val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
+
         ParcelCommandManager(this).register(
-            RegionCommands(this, regions, selections, outlines, panels, calibration),
+            RegionCommands(
+                this, regions, selections, outlines, panels, calibration, styles, styleDialog,
+            ),
             MarqueeCommands(selections, wand),
         )
 
