@@ -1,5 +1,13 @@
 # Parcel
 
+# Development tooling - /parcel calibrate, for measuring the text display panel constants below.
+# Off in production: with this false the commands are never registered, so they do not show up in
+# help or tab completion, and the tool's listener is never hooked up.
+#
+# Turn it on when a Minecraft version bump changes font metrics and the panel constants need
+# remeasuring. That is the whole reason the tool ships rather than living in a separate artifact.
+dev-tools: false
+
 tracking:
   # How often, in ticks, player region membership is recalculated.
   # This is the only recurring cost Parcel adds; raise it if you have very many regions and do not

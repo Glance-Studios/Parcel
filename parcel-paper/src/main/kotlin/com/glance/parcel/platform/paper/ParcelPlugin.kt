@@ -2,6 +2,7 @@ package com.glance.parcel.platform.paper
 
 import com.glance.parcel.api.ParcelAPI
 import com.glance.parcel.api.event.ParcelReadyEvent
+import com.glance.parcel.platform.paper.command.DevCommands
 import com.glance.parcel.platform.paper.command.MarqueeCommands
 import com.glance.parcel.platform.paper.command.ParcelCommandManager
 import com.glance.parcel.platform.paper.command.RegionCommands
@@ -108,17 +109,23 @@ class ParcelPlugin : JavaPlugin() {
         )
         server.pluginManager.registerEvents(panels, this)
 
-        calibration = PanelCalibration(this)
-        server.pluginManager.registerEvents(calibration, this)
-
         val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
 
-        ParcelCommandManager(this).register(
-            RegionCommands(
-                this, regions, selections, outlines, panels, calibration, styles, styleDialog,
-            ),
+        val commands = ParcelCommandManager(this)
+        commands.register(
+            RegionCommands(this, regions, selections, outlines, panels, styles, styleDialog),
             MarqueeCommands(selections, wand),
         )
+
+        // Off in production. Nothing is registered when disabled, so the calibration commands do
+        // not appear in help or tab completion and its listener is never hooked up - the tools are
+        // inert even if someone still has one in a chest.
+        if (config.getBoolean("dev-tools", false)) {
+            calibration = PanelCalibration(this)
+            server.pluginManager.registerEvents(calibration, this)
+            commands.register(DevCommands(calibration))
+            logger.info("Dev tools enabled: /parcel calibrate is available")
+        }
 
         tracker = RegionTracker(
             plugin = this,

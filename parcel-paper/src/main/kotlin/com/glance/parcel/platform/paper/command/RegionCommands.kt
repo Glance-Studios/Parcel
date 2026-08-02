@@ -4,10 +4,8 @@ import com.glance.parcel.api.region.Op
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
-import com.glance.parcel.platform.paper.visual.panel.PanelCalibration
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
 import com.glance.parcel.platform.paper.visual.panel.PanelStyleDialog
-import com.glance.parcel.platform.paper.visual.panel.StepTarget
 import com.glance.parcel.platform.paper.visual.panel.StyleStore
 import org.bukkit.Location
 import org.bukkit.command.CommandSender
@@ -33,7 +31,6 @@ internal class RegionCommands(
     private val selections: SelectionManagerImpl,
     private val outlines: OutlineRenderer,
     private val panels: PanelRenderer,
-    private val calibration: PanelCalibration,
     private val styles: StyleStore,
     private val styleDialog: PanelStyleDialog,
 ) {
@@ -284,41 +281,6 @@ internal class RegionCommands(
         }
         if (panels.isShowing(region)) panels.show(region)
         Text.send(player, "<gray>Cleared the stored style for <aqua>${Keys.display(region.key())}<gray>.")
-    }
-
-    @Command("parcel calibrate")
-    @Permission(ADMIN)
-    fun calibrate(player: Player) = calibration.start(player)
-
-    @Command("parcel calibrate done")
-    @Permission(ADMIN)
-    fun calibrateDone(player: Player) = calibration.finish(player)
-
-    @Command("parcel calibrate step <tool> <amount>")
-    @Permission(ADMIN)
-    fun calibrateStep(
-        player: Player,
-        @Argument("tool") tool: StepTarget,
-        @Argument("amount") amount: Double,
-    ) {
-        if (!calibration.setStep(player, tool, amount.toFloat())) {
-            Text.error(player, "You are not calibrating.")
-            return
-        }
-        Text.send(
-            player,
-            "<gray>${tool.name.lowercase()} step is now <white>$amount<gray>.",
-        )
-    }
-
-    @Command("parcel calibrate cancel")
-    @Permission(ADMIN)
-    fun calibrateCancel(player: Player) {
-        if (!calibration.stop(player)) {
-            Text.error(player, "You are not calibrating.")
-            return
-        }
-        Text.send(player, "<gray>Calibration cancelled.")
     }
 
     @Command("parcel render <name>")
