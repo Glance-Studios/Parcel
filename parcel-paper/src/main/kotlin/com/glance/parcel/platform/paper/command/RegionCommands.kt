@@ -39,8 +39,9 @@ internal class RegionCommands(
         Text.send(sender, "<gray>Region system. Commands:")
         Text.raw(sender, "  <aqua>/parcel list [namespace]<gray> - saved regions")
         Text.raw(sender, "  <aqua>/parcel info <name><gray> - parts, bounds and who uses it")
-        Text.raw(sender, "  <aqua>/parcel create <name><gray> - save your selection as a new region")
+        Text.raw(sender, "  <aqua>/parcel create<gray> (or <aqua>save<gray>) <aqua><name><gray> - save your selection as a new region")
         Text.raw(sender, "  <aqua>/parcel apply <name><gray> - reshape an existing region to your selection")
+        Text.raw(sender, "  <dark_gray>create/save/apply also work on <aqua>/mq")
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
         Text.raw(sender, "  <aqua>/parcel goto <name><gray> - teleport to it")
@@ -122,7 +123,27 @@ internal class RegionCommands(
         }
     }
 
-    @Command("parcel create <name>")
+    /**
+     * Saving spans both halves of the plugin - it is the end of a selection workflow and the start
+     * of a region's life - so it is reachable from either root under either verb.
+     *
+     * ⚠️ These must be SEPARATE declarations, not `parcel|marquee|mq create|save`. Putting the
+     * roots in one alternation makes marquee and mq aliases *of parcel*, while MarqueeCommands
+     * already registers them as a root of their own - two root nodes claiming the same name, which
+     * Cloud rejects with AmbiguousNodeException at load.
+     */
+    @Command("marquee|mq create|save <name>")
+    @Permission(EDIT)
+    fun createFromMarquee(player: Player, @Argument("name") name: String) = create(player, name)
+
+    @Command("marquee|mq apply <name>")
+    @Permission(EDIT)
+    fun applyFromMarquee(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) = apply(player, name)
+
+    @Command("parcel create|save <name>")
     @Permission(EDIT)
     fun create(player: Player, @Argument("name") name: String) {
         val key = Keys.parse(name) ?: run {
