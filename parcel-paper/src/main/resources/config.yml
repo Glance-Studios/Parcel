@@ -117,6 +117,13 @@ panels:
   # Refuse to render a mesh larger than this rather than spawning thousands of entities.
   max-panels: 512
 
+  # Show a render only to whoever asked for it.
+  # Panels are real entities, so without this every player on the server sees every rendered region
+  # - somebody's working overlay draped over the map. The particle visualisers are private for
+  # free, because particles are sent per player; entities have to be hidden deliberately.
+  # Turn it off for renders everyone should see, such as a permanent arena boundary.
+  viewer-only: true
+
   # WIREFRAME primitive: a particle grid over the meshed surface. No entities, so it costs nothing
   # to leave on and cannot leave anything behind. Grid spacing is per style, set in /parcel style.
   wireframe:

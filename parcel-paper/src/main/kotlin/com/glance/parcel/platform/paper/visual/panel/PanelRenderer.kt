@@ -18,6 +18,9 @@ import org.bukkit.entity.Player
 import org.bukkit.entity.TextDisplay
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.player.PlayerQuitEvent
+import java.util.UUID
 import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 import org.bukkit.util.Transformation
@@ -71,6 +74,14 @@ internal class PanelRenderer(
         val viewRange: Float,
         val cullingPadding: Float,
         val maxPanels: Int,
+        /**
+         * Whether a render is visible only to whoever asked for it.
+         *
+         * On by default: a rendered region is a working overlay, and nobody else needs someone
+         * else's working overlay draped over the map. Turn it off for a render everyone should see,
+         * like a permanent arena boundary.
+         */
+        val viewerOnly: Boolean,
         /** Fallback when a region has no stored style of its own. */
         val defaultStyle: PanelStyle,
         /**
@@ -109,7 +120,16 @@ internal class PanelRenderer(
         val interpolationTicks: Int,
     )
 
-    private val active = HashMap<NamespacedKey, List<Display>>()
+    /**
+     * A live render, and who it belongs to.
+     *
+     * Panels are real entities, so without an owner every player on the server sees every rendered
+     * region - somebody's admin overlay draped over the map. The particle visualisers were always
+     * private simply because `player.spawnParticle` is; entities had to be made so deliberately.
+     */
+    private class Render(val displays: List<Display>, val owner: UUID?)
+
+    private val active = HashMap<NamespacedKey, Render>()
     private var followTask: BukkitTask? = null
 
     fun isShowing(region: Region): Boolean =
@@ -165,8 +185,42 @@ internal class PanelRenderer(
             }
         }
 
-        active[region.key()] = displays
+        val owner = viewer?.takeIf { settings.viewerOnly }
+        active[region.key()] = Render(displays, owner?.uniqueId)
+        owner?.let { applyVisibility(displays, it) }
         return displays.size
+    }
+
+    /**
+     * Hides the render from everyone but its owner.
+     *
+     * `hideEntity` rather than sending fake entities by packet: packets would keep the world
+     * completely clean, but cost a packetevents dependency in an open-source jar for a benefit that
+     * mattered most on Folia - which is out of scope. Revisit if that changes.
+     */
+    private fun applyVisibility(displays: List<Display>, owner: Player) {
+        plugin.server.onlinePlayers
+            .filter { it.uniqueId != owner.uniqueId }
+            .forEach { other -> displays.forEach { other.hideEntity(plugin, it) } }
+    }
+
+    @EventHandler
+    fun onJoin(event: PlayerJoinEvent) {
+        // Someone joining after a render was spawned would otherwise see it - the hide only ever
+        // applied to who was online at the time.
+        val joiner = event.player
+        active.values
+            .filter { it.owner != null && it.owner != joiner.uniqueId }
+            .forEach { render -> render.displays.forEach { joiner.hideEntity(plugin, it) } }
+    }
+
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        // An owned render with its owner gone is invisible to everyone - litter, not a view.
+        active.entries
+            .filter { it.value.owner == event.player.uniqueId }
+            .map { it.key }
+            .forEach(::hide)
     }
 
     private fun spawnBlockPanel(world: World, quad: Quad, style: PanelStyle): BlockDisplay {
@@ -236,7 +290,7 @@ internal class PanelRenderer(
     }
 
     fun hide(key: NamespacedKey) {
-        active.remove(key)?.forEach { it.remove() }
+        active.remove(key)?.displays?.forEach { it.remove() }
         wireframes.hide(key)
     }
 
@@ -270,13 +324,14 @@ internal class PanelRenderer(
     private fun followTick() {
         if (active.isEmpty()) return
 
-        for ((key, displays) in active) {
+        for ((key, render) in active) {
+            val displays = render.displays
             if (displays.isEmpty()) continue
             val region = regionOf(key) ?: continue
             val style = styleFor(region)
             if (!style.follow || !DisplayMesh.isCrossSection(region)) continue
 
-            val target = targetHeight(region, displays.first()) ?: continue
+            val target = targetHeight(region, render, displays.first()) ?: continue
             for (display in displays) {
                 val at = display.location
                 // A hair of hysteresis: without it, a player bobbing on a jump re-teleports every
@@ -306,15 +361,23 @@ internal class PanelRenderer(
         .filter { withinRadius(it.location.x, it.location.z, region.bounds()) }
         .minByOrNull { it.location.y }
 
-    private fun targetHeight(region: Region, sample: Display): Double? {
+    private fun targetHeight(region: Region, render: Render, sample: Display): Double? {
         val world = region.world()
-        val nearest = plugin.server.onlinePlayers
-            .filter { it.world == world }
-            .filter { region.bounds().let { b -> withinRadius(it.location.x, it.location.z, b) } }
-            .minByOrNull { it.location.distanceSquared(sample.location) }
+
+        // Follow the owner, not whoever happens to be closest. Only the owner can see this render,
+        // so tracking anyone else would put the plane at a height that is wrong for the one person
+        // looking at it - a bug single-player testing could never surface.
+        val subject = render.owner
+            ?.let { plugin.server.getPlayer(it) }
+            ?: plugin.server.onlinePlayers
+                .filter { it.world == world }
+                .minByOrNull { it.location.distanceSquared(sample.location) }
             ?: return null
 
-        return nearest.location.y - settings.follow.offset
+        if (subject.world != world) return null
+        if (!withinRadius(subject.location.x, subject.location.z, region.bounds())) return null
+
+        return subject.location.y - settings.follow.offset
     }
 
     private fun withinRadius(x: Double, z: Double, box: BlockBox): Boolean {

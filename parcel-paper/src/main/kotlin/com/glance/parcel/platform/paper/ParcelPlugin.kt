@@ -138,6 +138,7 @@ class ParcelPlugin : JavaPlugin() {
                 viewRange = config.getDouble("panels.view-range", 4.0).toFloat(),
                 cullingPadding = config.getDouble("panels.culling-padding", 2.0).toFloat(),
                 maxPanels = config.getInt("panels.max-panels", 512),
+                viewerOnly = config.getBoolean("panels.viewer-only", true),
                 follow = PanelRenderer.Follow(
                     radius = config.getDouble("panels.follow.radius", 32.0),
                     offset = config.getDouble("panels.follow.offset", 3.0),
