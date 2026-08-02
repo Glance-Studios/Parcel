@@ -7,6 +7,7 @@ import com.glance.parcel.api.event.RegionUsageQueryEvent
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
 import com.glance.parcel.api.storage.RegionRepository
+import com.glance.parcel.platform.paper.storage.HistoryStore
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.NamespacedKey
@@ -19,7 +20,17 @@ import java.util.logging.Level
 internal class RegionManagerImpl(
     private val plugin: Plugin,
     private val repository: RegionRepository,
+    private val history: HistoryStore,
 ) : RegionManager {
+
+    override fun undo(key: NamespacedKey): Boolean {
+        val region = regions[key] ?: return false
+        region.undo() ?: return false
+        // Goes through the same hook as any other edit, so the event fires, renders refresh and
+        // both the region and its remaining history are written back.
+        persist(region)
+        return true
+    }
 
     private val regions = ConcurrentHashMap<NamespacedKey, RegionImpl>()
 
@@ -75,6 +86,7 @@ internal class RegionManagerImpl(
         onRegionRemoved(removed)
         if (removed.isTransient()) return true
 
+        history.delete(removed.key())
         repository.delete(removed.key()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to delete region ${removed.key()}", error)
             null
@@ -130,7 +142,7 @@ internal class RegionManagerImpl(
             }
             regions[record.key()] = RegionImpl(
                 record.key(), world, record.parts(), transient = false, onChanged = ::persist,
-            )
+            ).apply { restoreHistory(history.load(record.key())) }
             loaded++
         }
         loaded
@@ -147,6 +159,7 @@ internal class RegionManagerImpl(
         plugin.server.pluginManager.callEvent(RegionModifyEvent(region))
         if (region.isTransient()) return
 
+        history.save(region.key(), region.historySnapshot())
         repository.save(region.toRecord()).exceptionally { error ->
             plugin.logger.log(Level.SEVERE, "Failed to save region ${region.key()}", error)
             null

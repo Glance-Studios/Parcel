@@ -78,6 +78,18 @@ public interface RegionManager {
     boolean delete(@NotNull NamespacedKey key);
 
     /**
+     * Reverts a region to its previous shape.
+     *
+     * <p>Fires {@link com.glance.parcel.api.event.RegionModifyEvent} like any other edit. Calling
+     * it repeatedly walks back through history rather than flipping between two shapes; there is
+     * no redo.
+     *
+     * @return whether there was anything to undo
+     * @see Region#historyDepth()
+     */
+    boolean undo(@NotNull NamespacedKey key);
+
+    /**
      * Asks every plugin what it is using this region for.
      *
      * <p>Fires {@link com.glance.parcel.api.event.RegionUsageQueryEvent} and collects the answers,

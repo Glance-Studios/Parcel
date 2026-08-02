@@ -1,12 +1,5 @@
 package com.glance.parcel.platform.paper.storage
 
-import com.glance.parcel.api.math.BlockBox
-import com.glance.parcel.api.math.BlockPos
-import com.glance.parcel.api.region.Op
-import com.glance.parcel.api.region.Part
-import com.glance.parcel.api.shape.Cuboid
-import com.glance.parcel.api.shape.Prism
-import com.glance.parcel.api.shape.Shape
 import com.glance.parcel.api.storage.RegionRepository
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
@@ -20,7 +13,10 @@ import java.util.concurrent.CompletableFuture
  * storage across a network implements [RegionRepository] instead - nothing else in Parcel knows
  * where regions live.
  */
-internal class YamlRegionRepository(private val root: File) : RegionRepository {
+internal class YamlRegionRepository(
+    private val root: File,
+    private val parts: PartCodec,
+) : RegionRepository {
 
     override fun loadAll(): CompletableFuture<Collection<RegionRepository.Record>> =
         CompletableFuture.supplyAsync {
@@ -46,7 +42,7 @@ internal class YamlRegionRepository(private val root: File) : RegionRepository {
 
             val yaml = YamlConfiguration()
             yaml.set("world", record.world())
-            yaml.set("parts", record.parts().map(::writePart))
+            yaml.set("parts", record.parts().map(parts::write))
             yaml.save(file)
         }
 
@@ -63,40 +59,12 @@ internal class YamlRegionRepository(private val root: File) : RegionRepository {
         val world = yaml.getString("world") ?: return null
         val key = NamespacedKey(namespace, file.nameWithoutExtension)
 
-        val parts = yaml.getMapList("parts").mapNotNull { raw ->
+        // Named to avoid shadowing the codec this class was constructed with.
+        val stored = yaml.getMapList("parts").mapNotNull { raw ->
             @Suppress("UNCHECKED_CAST")
-            readPart(raw as Map<String, Any?>)
+            parts.read(raw as Map<String, Any?>)
         }
-        return RegionRepository.Record(key, world, parts)
+        return RegionRepository.Record(key, world, stored)
     }
 
-    private fun writePart(part: Part): Map<String, Any> {
-        val bounds = part.shape().bounds()
-        return mapOf(
-            "op" to part.op().name,
-            "type" to part.shape().typeId(),
-            "min" to listOf(bounds.min().x(), bounds.min().y(), bounds.min().z()),
-            "max" to listOf(bounds.max().x(), bounds.max().y(), bounds.max().z()),
-        )
-    }
-
-    private fun readPart(raw: Map<String, Any?>): Part? {
-        val op = runCatching { Op.valueOf(raw["op"] as String) }.getOrNull() ?: return null
-        val min = readPos(raw["min"]) ?: return null
-        val max = readPos(raw["max"]) ?: return null
-        val box = BlockBox.of(min, max)
-
-        val shape: Shape = when (raw["type"] as? String) {
-            Prism.TYPE_ID -> Prism(box)
-            Cuboid.TYPE_ID -> Cuboid(box)
-            else -> return null
-        }
-        return Part(shape, op)
-    }
-
-    private fun readPos(raw: Any?): BlockPos? {
-        val values = (raw as? List<*>)?.mapNotNull { (it as? Number)?.toInt() } ?: return null
-        if (values.size != 3) return null
-        return BlockPos(values[0], values[1], values[2])
-    }
 }

@@ -55,6 +55,7 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel apply <name><gray> - REPLACE a region's shape with your selection")
         Text.raw(sender, "  <aqua>/parcel append <name><gray> - ADD your selection to it, keeping what is there")
         Text.raw(sender, "  <dark_gray>create/save/apply also work on <aqua>/mq")
+        Text.raw(sender, "  <aqua>/parcel undo <name><gray> - revert its last change")
         Text.raw(sender, "  <aqua>/parcel delete <name><gray> - remove a region")
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
         Text.raw(sender, "  <aqua>/parcel render <name><gray> - toggle solid panels on its surface")
@@ -232,6 +233,29 @@ internal class RegionCommands(
         }
 
         finish(player, region, "Reshaped", usages)
+    }
+
+    @Command("parcel undo <name>")
+    @Permission(EDIT)
+    fun undoRegion(
+        sender: CommandSender,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(sender, name) ?: return
+        val before = region.parts().size
+
+        if (!regions.undo(region.key())) {
+            Text.error(sender, "${Keys.display(region.key())} has nothing left to undo.")
+            return
+        }
+
+        Text.send(
+            sender,
+            "<gray>Reverted <aqua>${Keys.display(region.key())}<gray> " +
+                "(<white>$before<gray> parts -> <white>${region.parts().size}<gray>). " +
+                "<dark_gray>${region.historyDepth()} step(s) left.",
+        )
+        if (sender is Player && panels.isShowing(region)) panels.show(region, viewer = sender)
     }
 
     @Command("parcel load <name>")

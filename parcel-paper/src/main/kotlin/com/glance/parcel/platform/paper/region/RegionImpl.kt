@@ -32,6 +32,15 @@ internal class RegionImpl(
 
     private val partList = ArrayList(parts)
 
+    /**
+     * Previous shapes, newest first.
+     *
+     * Cheap because a region is only ever a list of parts - a few hundred bytes per entry, not a
+     * snapshot of anything expensive. Bounded, because unbounded history on a shared object is a
+     * slow leak rather than a safety net.
+     */
+    private val history = ArrayDeque<List<Part>>()
+
     private var cachedBounds: BlockBox? = null
     private var cachedMesh: List<Quad>? = null
     private var boundsComputed = false
@@ -84,10 +93,46 @@ internal class RegionImpl(
         cachedMesh = null
     }
 
-    internal fun replaceParts(parts: List<Part>) {
+    override fun historyDepth(): Int = history.size
+
+    /**
+     * The single mutation point every edit funnels through, which is why the snapshot lives here
+     * rather than in each caller - there is no way to change a region without passing through it.
+     */
+    internal fun replaceParts(parts: List<Part>, remember: Boolean = true) {
+        if (remember) {
+            history.addFirst(java.util.List.copyOf(partList))
+            while (history.size > MAX_HISTORY) history.removeLast()
+        }
         partList.clear()
         partList.addAll(parts)
         invalidate()
+    }
+
+    /**
+     * Steps back one shape.
+     *
+     * Deliberately does NOT record the shape being discarded: pushing it back onto the same stack
+     * would make repeated undo flip between two states instead of walking back through history,
+     * which is not what anyone means by undo. Redo would need its own stack, and has not earned one.
+     *
+     * @return the shape restored, or null if there was no history
+     */
+    internal fun undo(): List<Part>? {
+        val previous = history.removeFirstOrNull() ?: return null
+        replaceParts(previous, remember = false)
+        return previous
+    }
+
+    internal fun historySnapshot(): List<List<Part>> = history.toList()
+
+    internal fun restoreHistory(entries: List<List<Part>>) {
+        history.clear()
+        entries.take(MAX_HISTORY).forEach { history.addLast(it) }
+    }
+
+    private companion object {
+        const val MAX_HISTORY = 10
     }
 
     private inner class EditorImpl : RegionEditor {

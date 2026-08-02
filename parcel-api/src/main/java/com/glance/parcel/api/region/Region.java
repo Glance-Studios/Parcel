@@ -85,6 +85,16 @@ public interface Region {
     boolean isTransient();
 
     /**
+     * How many previous versions of this region are available to {@link RegionManager#undo}.
+     *
+     * <p>A region is only ever a list of parts, so a previous version is a few hundred bytes - which
+     * is why history is affordable here in a way it usually is not. It matters because regions are
+     * shared: one bad edit can break several plugins at once, and without history that is
+     * unrecoverable.
+     */
+    int historyDepth();
+
+    /**
      * Opens an editor over this region. Changes apply on
      * {@link RegionEditor#commit()}.
      */

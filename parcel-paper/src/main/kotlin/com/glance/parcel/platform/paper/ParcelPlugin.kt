@@ -12,6 +12,8 @@ import com.glance.parcel.platform.paper.marquee.MarqueeListener
 import com.glance.parcel.platform.paper.marquee.MarqueeWand
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
+import com.glance.parcel.platform.paper.storage.HistoryStore
+import com.glance.parcel.platform.paper.storage.PartCodec
 import com.glance.parcel.platform.paper.storage.YamlRegionRepository
 import com.glance.parcel.platform.paper.tracking.RegionTracker
 import com.glance.parcel.platform.paper.visual.OutlineRenderer
@@ -45,9 +47,14 @@ class ParcelPlugin : JavaPlugin() {
 
     override fun onEnable() {
         saveDefaultConfig()
+        // Before anything reads a value: saveDefaultConfig only writes the file once, so without
+        // this an old install silently runs on code defaults for every option added since.
+        if (ConfigMigration.run(this).isNotEmpty()) reloadConfig()
 
-        val repository = YamlRegionRepository(File(dataFolder, "regions"))
-        regions = RegionManagerImpl(this, repository)
+        val codec = PartCodec()
+        val repository = YamlRegionRepository(File(dataFolder, "regions"), codec)
+        val history = HistoryStore(File(dataFolder, "history"), codec)
+        regions = RegionManagerImpl(this, repository, history)
 
         val selections = SelectionManagerImpl(
             regions,
