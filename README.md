@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.glance.parcel:parcel-api:0.2.0")
+    compileOnly("com.glance.parcel:parcel-api:0.3.0")
 }
 ```
 
@@ -126,6 +126,27 @@ either rendered or it is not; the `viewer` argument decides who sees it and wher
 plane sits, not whether a second caller gets their own copy.
 
 Added in 0.2.0 - feature-detect with `apiVersion()` if you need to support 0.1.0 as well.
+
+### What a builder is working on
+
+Creating a region **marks** it for that player, and `marked()` exposes which:
+
+```java
+NamespacedKey key = Parcel.api().regions().marked(player);
+```
+
+Called marking rather than selection on purpose: the marquee already owns "selection" for the
+transient corners a builder is assembling, and two meanings of selected is a collision waiting to be
+misread.
+
+A pointer and nothing more - no lock, no ownership. Two builders can have the same region marked, and
+it does not stop anyone editing it.
+
+It is there so a consumer can narrow its own tab completion the way Parcel narrows its own: if
+someone has a region marked, that is overwhelmingly the one they mean next. Motif uses it for
+exactly that.
+
+Added in 0.3.0.
 
 ### Flat regions are drawn as a cross-section
 

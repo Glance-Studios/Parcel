@@ -9,9 +9,14 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * The region a player is currently working on.
+ * The region a player is currently working on - the one they have *marked*.
  *
- * Creating one selects it. Everything you are likely to do next - render it, recolour it, pause its
+ * Deliberately not called a selection. The marquee already owns that word for the transient corners
+ * and parts a builder is assembling, and having two kinds of "selected" - one you are drawing, one
+ * you have saved - was a collision waiting to be misread. You select with the tool; you mark a
+ * region.
+ *
+ * Creating one marks it. Everything you are likely to do next - render it, recolour it, pause its
  * plane, fly back to it - then refers to "the one I just made" rather than making you retype a name
  * you have only just invented.
  *
@@ -19,9 +24,9 @@ import java.util.concurrent.ConcurrentHashMap
  * have the same region selected, and selecting one does not stop anyone else editing it. Regions
  * are shared geometry, and a selection that implied otherwise would be lying.
  *
- * Cleared by `/parcel deselect`, by deleting the region, and on quit.
+ * Cleared by `/parcel unmark`, by deleting the region, and on quit.
  */
-internal object ActiveRegions : Listener {
+internal object MarkedRegions : Listener {
 
     private val active = ConcurrentHashMap<UUID, NamespacedKey>()
 

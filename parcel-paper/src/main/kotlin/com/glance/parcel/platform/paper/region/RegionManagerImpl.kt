@@ -1,5 +1,5 @@
 package com.glance.parcel.platform.paper.region
-import com.glance.parcel.platform.paper.ActiveRegions
+import com.glance.parcel.platform.paper.MarkedRegions
 
 import com.glance.parcel.api.event.RegionCreateEvent
 import com.glance.parcel.api.event.RegionDeleteEvent
@@ -62,7 +62,7 @@ internal class RegionManagerImpl(
         )
     }
 
-    override fun selected(player: Player): NamespacedKey? = ActiveRegions.of(player)
+    override fun marked(player: Player): NamespacedKey? = MarkedRegions.of(player)
 
     override fun create(key: NamespacedKey, world: World): Region =
         register(key, world, transient = false)

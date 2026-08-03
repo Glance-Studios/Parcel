@@ -20,7 +20,7 @@ internal class ParcelAPIImpl(
     override fun apiVersion(): String = API_VERSION
 
     companion object {
-        /** 0.2.0 added renders(); 0.3.0 added RegionManager.selected(). */
+        /** 0.2.0 added renders(); 0.3.0 added RegionManager.marked(). */
         const val API_VERSION = "0.3.0"
     }
 }

@@ -101,7 +101,16 @@ internal class MarqueeCommands(
             SelectionMode.FLAT -> "footprint only, spanning the full world height"
             SelectionMode.VOLUME -> "a bounded box, using both corners' Y"
         }
-        Text.send(player, "<gray>Mode is now <white>${mode.name.lowercase()}<gray> - $explanation.")
+        val other = if (mode == SelectionMode.FLAT) SelectionMode.VOLUME else SelectionMode.FLAT
+        // The way back, on the message that took you here. Switching mode is usually a thing you
+        // try rather than a thing you decide, so undoing it should not need typing.
+        Text.send(
+            player,
+            "<gray>Mode is now <white>${mode.name.lowercase()}<gray> - $explanation. " +
+                "<hover:show_text:'Back to ${other.name.lowercase()}'>" +
+                "<click:run_command:'/mq mode ${other.name.lowercase()}'>" +
+                "<dark_gray>[<aqua><u>switch back</u><dark_gray>]</click></hover>",
+        )
     }
 
     @Command("marquee|mq add")

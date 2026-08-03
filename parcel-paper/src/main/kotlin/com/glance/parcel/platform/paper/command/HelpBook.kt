@@ -116,12 +116,12 @@ internal object HelpBook {
 
         <dark_gray>Keeps it as a region
         and clears your
-        selection.
+        marquee.
 
-        It renders straight
-        away, so the outline
-        is replaced by the
-        real thing.
+        You are now working
+        on it - it renders,
+        and the wand says its
+        name.
         """.trimIndent(),
 
         // 6 - looking at a saved one
@@ -138,6 +138,11 @@ internal object HelpBook {
         <dark_gray>fly to it
         <reset><click:suggest_command:'/parcel undo '><u>undo name</u></click>
         <dark_gray>put it back
+
+        <reset><click:suggest_command:'/parcel mark '><u>mark name</u></click>
+        <dark_gray>work on it again
+        <reset><click:run_command:'/parcel unmark'><u>unmark</u></click>
+        <dark_gray>stop, and hide it
         """.trimIndent(),
 
         // 7 - the way on
@@ -236,6 +241,11 @@ internal object HelpBook {
         <dark_gray>reverts a saved region
         to how it was. Ten
         steps, kept on disk.
+
+        <reset><click:suggest_command:'/parcel delete '><u>delete name</u></click>
+        <dark_gray>removes it. Tells you
+        what was using it, and
+        asks to confirm.
         """.trimIndent(),
 
         // 12 - rendering
@@ -269,6 +279,11 @@ internal object HelpBook {
         move. It shows the
         footprint, not the
         real extent.
+
+        <reset><click:suggest_command:'/parcel follow '><u>follow name</u></click>
+        <dark_gray>pins it where it is,
+        so you can back off
+        and look at it.
         """.trimIndent(),
 
         // 14 - style

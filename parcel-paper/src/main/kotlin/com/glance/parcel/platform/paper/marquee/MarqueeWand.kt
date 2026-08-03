@@ -4,7 +4,7 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
-import com.glance.parcel.platform.paper.ActiveRegions
+import com.glance.parcel.platform.paper.MarkedRegions
 import com.glance.parcel.platform.paper.command.Keys
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.Material
@@ -46,6 +46,12 @@ internal class MarqueeWand(
                     line("<gray>Sneak + left <dark_gray>- <green>add<dark_gray> the marked box"),
                     line("<gray>Sneak + right <dark_gray>- <red>carve<dark_gray> the marked box"),
                     Component.empty(),
+                    // Sits with the controls rather than under "everything else": mode decides
+                    // whether the box has a top and bottom at all, so it is a thing you set before
+                    // marking, not a thing you look up afterwards.
+                    line("<gray>/mq mode <dark_gray>- <green>flat<dark_gray> footprint, or"),
+                    line("<dark_gray>  <green>volume<dark_gray> using both corners' Y"),
+                    Component.empty(),
                     line("<dark_gray>Save it as"),
                     line("<gray>/mq save <name> <dark_gray>- a new region"),
                     Component.empty(),
@@ -72,8 +78,8 @@ internal class MarqueeWand(
      * Rewrite the label on every wand this player is carrying.
      *
      * The wand is the thing already in their hand, so it is the cheapest place to answer "what am I
-     * doing right now" - no command, no glance at chat. It reads either the region being worked on,
-     * or how far through marking a box they are.
+     * doing right now" - no command, no glance at chat. It reads either the region they have marked,
+     * or how far through selecting a box they are.
      *
      * Rewrites in place rather than replacing the stack, so it never disturbs the hotbar slot or
      * drops anything, and it is safe to call on every click.
@@ -87,8 +93,8 @@ internal class MarqueeWand(
     }
 
     private fun labelFor(player: Player): String {
-        ActiveRegions.of(player)?.let { key ->
-            return "<aqua>Marquee <dark_gray>- <gray>selected <white>${Keys.display(key)}"
+        MarkedRegions.of(player)?.let { key ->
+            return "<aqua>Marquee <dark_gray>- <gray>marked <white>${Keys.display(key)}"
         }
 
         val selection = selections.of(player)

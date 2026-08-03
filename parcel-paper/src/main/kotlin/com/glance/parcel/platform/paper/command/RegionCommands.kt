@@ -2,8 +2,9 @@ package com.glance.parcel.platform.paper.command
 
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Region
-import com.glance.parcel.platform.paper.ActiveRegions
-import com.glance.parcel.platform.paper.RegionSelection
+import com.glance.parcel.api.selection.Selection
+import com.glance.parcel.platform.paper.MarkedRegions
+import com.glance.parcel.platform.paper.RegionMarking
 import org.bukkit.NamespacedKey
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
@@ -42,29 +43,29 @@ internal class RegionCommands(
     private val styles: StyleStore,
     private val styleDialog: PanelStyleDialog,
     private val browser: RegionBrowser,
-    private val regionSelection: RegionSelection,
+    private val marking: RegionMarking,
 ) {
 
     /**
-     * Region names, narrowed to the one you have selected.
+     * Region names, narrowed to the one you have marked.
      *
-     * If you are working on a region, that is overwhelmingly the one you mean next - so completing
+     * If you have a region marked, that is overwhelmingly the one you mean next - so completing
      * a list of forty others is noise. With one selected, tab offers just it.
      *
      * The escape hatch matters as much as the narrowing: as soon as what you have typed does not
-     * prefix the selected region, the full list comes back. So `/parcel goto ta` still completes
-     * `tavern` while `plaza` is selected, and nobody has to deselect to reach something else.
+     * prefix the marked region, the full list comes back. So `/parcel goto ta` still completes
+     * `tavern` while `plaza` is marked, and nobody has to unmark to reach something else.
      */
     @Suggestions("region-keys")
     fun regionKeys(context: CommandContext<CommandSender>, input: String): List<String> {
         val all = regions.all().map { Keys.display(it.key()) }
 
         val player = context.sender() as? Player ?: return all
-        val selected = ActiveRegions.of(player)?.let(Keys::display) ?: return all
+        val marked = MarkedRegions.of(player)?.let(Keys::display) ?: return all
 
-        // Still in the list, or nothing typed yet - the selected one is the whole answer.
-        return if (input.isEmpty() || selected.startsWith(input, ignoreCase = true)) {
-            listOf(selected)
+        // Still in the list, or nothing typed yet - the marked one is the whole answer.
+        return if (input.isEmpty() || marked.startsWith(input, ignoreCase = true)) {
+            listOf(marked)
         } else {
             all
         }
@@ -222,7 +223,7 @@ internal class RegionCommands(
 
         val selection = selections.of(player)
         if (selection == null || selection.isEmpty()) {
-            Text.error(player, "Your selection is empty. Build one with /marquee first.")
+            reportNothingToSave(player, selection)
             return
         }
 
@@ -232,9 +233,51 @@ internal class RegionCommands(
         // same moment - without this the shape you just spent time on disappears off the screen
         // and you have to ask for it back.
         // One render, not two - select() draws it as part of selecting.
-        val panelCount = regionSelection.select(player, region)
+        val panelCount = marking.mark(player, region)
 
-        announceCreated(player, key, region.parts().size, panelCount)
+        announceCreated(player, region, panelCount)
+    }
+
+    /**
+     * Why there is nothing to save, specifically.
+     *
+     * Marked corners are not a selection - they are a box you have outlined but not committed, and
+     * the outline looks so much like a selection that "your selection is empty" reads as a bug.
+     * Naming which of the two situations you are in is the difference between a dead end and an
+     * obvious next click.
+     */
+    private fun reportNothingToSave(player: Player, selection: Selection?) {
+        val a = selection?.pendingA()
+        val b = selection?.pendingB()
+
+        when {
+            a != null && b != null -> {
+                Text.error(player, "You have a box marked, but have not committed it yet.")
+                Text.raw(
+                    player,
+                    "  <dark_gray>Commit it first: " +
+                        "<click:run_command:'/mq add'><green><u>/mq add</u></green></click>" +
+                        "<dark_gray> to keep it, or " +
+                        "<click:run_command:'/mq carve'><red><u>/mq carve</u></red></click>" +
+                        "<dark_gray> to cut it away. Then save.",
+                )
+            }
+
+            a != null || b != null -> {
+                val missing = if (a == null) "1" else "2"
+                val verb = if (a == null) "Left" else "Right"
+                Text.error(player, "Only one corner is marked.")
+                Text.raw(
+                    player,
+                    "  <dark_gray>$verb click a block for corner $missing, then " +
+                        "<click:run_command:'/mq add'><green><u>/mq add</u></green></click><dark_gray>.",
+                )
+            }
+
+            else -> {
+                Text.error(player, "Your selection is empty. Build one with /marquee first.")
+            }
+        }
     }
 
     /**
@@ -244,27 +287,34 @@ internal class RegionCommands(
      * past otherwise, and every line is a click. Green runs immediately, yellow drops the command
      * into your chat box to finish - the hover text on each says which, so no legend is needed.
      */
-    private fun announceCreated(player: Player, key: NamespacedKey, parts: Int, panelCount: Int) {
-        val name = Keys.display(key)
+    private fun announceCreated(player: Player, region: Region, panelCount: Int) {
+        val name = Keys.display(region.key())
+        val parts = region.parts().size
+        val flat = DisplayMesh.isCrossSection(region)
 
         Text.raw(player, RULE)
         Text.send(player, "<gray>Created <aqua>$name<gray> from <white>$parts<gray> part(s).")
         Text.raw(
             player,
-            "  <dark_gray>Selected, and rendering. Your selection is cleared.",
+            "  <dark_gray>Marked, and rendering. Your marquee is cleared.",
         )
         Text.raw(player, "")
 
         if (panelCount > 0) {
-            bullet(player, "run", "/parcel render $name", "hide it")
-            // Flat regions follow you by default, which is right while you are looking around and
-            // wrong the moment you want to walk away and judge the shape from a distance.
-            bullet(player, "run", "/parcel follow $name", "pause the plane where it is")
+            bullet(player, "run", "/parcel render $name", "show/hide it")
+            // Only a cross-section has a plane that moves with you. On a volume region this bullet
+            // would do nothing at all, which is worse than not offering it.
+            if (flat) {
+                bullet(player, "run", "/parcel follow $name", "pause/unpause render movement")
+            }
         }
         bullet(player, "run", "/parcel style $name", "recolour it")
         bullet(player, "run", "/parcel goto $name", "fly back to it")
-        bullet(player, "run", "/parcel deselect", "deselect it")
+        bullet(player, "run", "/parcel unmark", "unmark it")
         bullet(player, "suggest", "/parcel append $name", "add another shape to it")
+        // Safe to run despite the colour: this is the prompt, not the deletion. It reports what is
+        // using the region and then asks for an explicit confirm.
+        bullet(player, "danger", "/parcel delete $name", "delete it")
 
         Text.raw(player, RULE)
     }
@@ -272,13 +322,27 @@ internal class RegionCommands(
     /**
      * @param kind `run` fires the command, `suggest` puts it in the chat box for editing
      */
+    /**
+     * @param kind `run` fires the command, `suggest` puts it in the chat box for editing, `danger`
+     *   fires it but reads as destructive
+     */
     private fun bullet(player: Player, kind: String, command: String, what: String) {
-        val colour = if (kind == "run") "<green>" else "<yellow>"
-        val hover = if (kind == "run") "Click to run" else "Click to put this in your chat"
-        val suffix = if (kind == "run") "" else " "
+        val colour = when (kind) {
+            "run" -> "<green>"
+            // Softer than plain red, which shouts. This marks a thing to be careful of, not an error.
+            "danger" -> "<color:#e57373>"
+            else -> "<yellow>"
+        }
+        val hover = when (kind) {
+            "suggest" -> "Click to put this in your chat"
+            "danger" -> "Click to start deleting - it asks to confirm"
+            else -> "Click to run"
+        }
+        val action = if (kind == "suggest") "suggest" else "run"
+        val suffix = if (kind == "suggest") " " else ""
         Text.raw(
             player,
-            "  <dark_gray>- <hover:show_text:'$hover'><click:${kind}_command:'$command$suffix'>" +
+            "  <dark_gray>- <hover:show_text:'$hover'><click:${action}_command:'$command$suffix'>" +
                 "$colour$command</click></hover> <dark_gray>$what",
         )
     }
@@ -293,7 +357,7 @@ internal class RegionCommands(
 
         val selection = selections.of(player)
         if (selection == null || selection.isEmpty()) {
-            Text.error(player, "Your selection is empty. Build one with /marquee first.")
+            reportNothingToSave(player, selection)
             return
         }
 
@@ -403,7 +467,7 @@ internal class RegionCommands(
 
         val selection = selections.of(player)
         if (selection == null || selection.isEmpty()) {
-            Text.error(player, "Your selection is empty. Build one with /marquee first.")
+            reportNothingToSave(player, selection)
             return
         }
 
@@ -455,7 +519,15 @@ internal class RegionCommands(
             Text.send(sender, "<yellow>${Keys.display(region.key())} is in use by:")
             usages.forEach { Text.raw(sender, "  <dark_gray>- <gray>$it") }
         }
-        Text.raw(sender, "  <gray>Run <red>/parcel delete ${Keys.display(region.key())} confirm<gray> to remove it.")
+        // Clickable, and plain red rather than the soft red used to *start* a delete - this one is
+        // the deletion. The hover says so, because a click here does not ask again.
+        val confirm = "/parcel delete ${Keys.display(region.key())} confirm"
+        Text.raw(
+            sender,
+            "  <gray>Run <hover:show_text:'<red>Deletes it. There is no second confirm.'>" +
+                "<click:run_command:'$confirm'><red><u>$confirm</u></red></click></hover>" +
+                "<gray> to remove it.",
+        )
     }
 
     @Command("parcel delete <name> confirm")
@@ -466,8 +538,8 @@ internal class RegionCommands(
     ) {
         val region = resolve(sender, name) ?: return
 
-        // Nobody can be working on a region that no longer exists, and its panels come down.
-        regionSelection.forget(region.key())
+        // Nobody can have a region marked that no longer exists, and its panels come down.
+        marking.forget(region.key())
         if (!regions.delete(region.key())) {
             Text.error(sender, "Deletion of ${Keys.display(region.key())} was cancelled by another plugin.")
             return
@@ -588,36 +660,36 @@ internal class RegionCommands(
     /**
      * Stop working on the current region.
      *
-     * Hides its render too, because "selected" and "drawn on my screen" are the same thing from
-     * where a builder is standing, and leaving the panels up after deselecting would be a state
-     * with no name.
+     * Hides its render too, because "marked" and "drawn on my screen" are the same thing from where
+     * a builder is standing, and leaving the panels up after unmarking would be a state with no
+     * name.
      */
     /**
      * Work on a region, drawing it if it was not already.
      *
-     * The counterpart to deselect. Creating one selects it automatically; this is for coming back
-     * to something you made earlier.
+     * The counterpart to unmark. Creating one marks it automatically; this is for coming back to
+     * something you made earlier.
      */
-    @Command("parcel select <name>")
+    @Command("parcel mark <name>")
     @Permission(VIEW)
-    fun select(
+    fun mark(
         player: Player,
         @Argument(value = "name", suggestions = "region-keys") name: String,
     ) {
         val region = resolve(player, name) ?: return
-        regionSelection.select(player, region)
-        Text.send(player, "<gray>Selected <aqua>${Keys.display(region.key())}<gray>, and rendering it.")
+        marking.mark(player, region)
+        Text.send(player, "<gray>Marked <aqua>${Keys.display(region.key())}<gray>, and rendering it.")
     }
 
-    @Command("parcel deselect|unselect")
+    @Command("parcel unmark")
     @Permission(VIEW)
-    fun deselect(player: Player) {
-        val key = regionSelection.deselect(player)
+    fun unmark(player: Player) {
+        val key = marking.unmark(player)
         if (key == null) {
-            Text.error(player, "Nothing selected.")
+            Text.error(player, "No region marked.")
             return
         }
-        Text.send(player, "<gray>Deselected <aqua>${Keys.display(key)}<gray>.")
+        Text.send(player, "<gray>Unmarked <aqua>${Keys.display(key)}<gray>.")
     }
 
     /**
@@ -627,7 +699,7 @@ internal class RegionCommands(
      * want to back off and judge the footprint from a distance - the plane comes with you and you
      * can never see it from outside. This is that toggle, without opening the style dialog.
      *
-     * Defaults to whatever you have selected, so straight after creating one it needs no name.
+     * Defaults to whatever you have marked, so straight after creating one it needs no name.
      */
     @Command("parcel follow|freeze [name]")
     @Permission(EDIT)
@@ -635,9 +707,9 @@ internal class RegionCommands(
         player: Player,
         @Argument(value = "name", suggestions = "region-keys") name: String?,
     ) {
-        val key = name?.let(Keys::parse) ?: ActiveRegions.of(player)
+        val key = name?.let(Keys::parse) ?: MarkedRegions.of(player)
         if (key == null) {
-            Text.error(player, "Nothing selected - name a region, or create one first.")
+            Text.error(player, "No region marked - name one, or create one first.")
             return
         }
         val region = regions.get(key)

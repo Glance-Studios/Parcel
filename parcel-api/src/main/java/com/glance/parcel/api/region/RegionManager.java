@@ -52,21 +52,22 @@ public interface RegionManager {
      * @throws IllegalArgumentException if a region with this key already exists
      */
     /**
-     * The region this player is currently working on, if any.
+     * The region this player has marked - the one they are working on, if any.
      *
-     * <p>Set by creating one and cleared by {@code /parcel deselect}, by deleting the region, and
-     * on quit. It is a pointer and nothing more - no lock, no ownership. Two builders can have the
+     * <p>Deliberately not called a selection: the marquee owns that word for the transient corners
+     * a builder is assembling. Set by creating a region and cleared by {@code /parcel unmark}, by
+     * deleting it, and on quit. It is a pointer and nothing more - no lock, no ownership. Two builders can have the
      * same region selected, and it does not stop anyone editing it.
      *
-     * <p>Useful for narrowing your own tab completion the way Parcel narrows its own: if someone is
-     * working on a region, that is overwhelmingly the one they mean next.
+     * <p>Useful for narrowing your own tab completion the way Parcel narrows its own: if someone has
+     * a region marked, that is overwhelmingly the one they mean next.
      *
      * <p>Added in 0.3.0.
      *
-     * @return the selected region's key, or {@code null} if nothing is selected
+     * @return the marked region's key, or {@code null} if nothing is marked
      */
     @Nullable
-    NamespacedKey selected(@NotNull Player player);
+    NamespacedKey marked(@NotNull Player player);
 
     @NotNull
     Region create(@NotNull NamespacedKey key, @NotNull World world);
