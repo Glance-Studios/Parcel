@@ -137,7 +137,9 @@ internal class MarqueeCommands(
         Text.send(
             player,
             "<gray>$verb <white>${bounds.sizeX()}x${bounds.sizeY()}x${bounds.sizeZ()}<gray>. " +
-                "Selection now has <white>${selection.parts().size}<gray> part(s).",
+                "Selection now has <white>${selection.parts().size}<gray> part(s)." +
+                " <hover:show_text:'Puts /mq save in your chat - add a name'>" +
+                "<click:suggest_command:'/mq save '><aqua>[Save now?]</aqua></click></hover>",
         )
     }
 

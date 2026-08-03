@@ -99,7 +99,8 @@ internal class MarqueeListener(
         Text.send(
             player,
             "$verb <white>${box.sizeX()}x${box.sizeY()}x${box.sizeZ()}<gray>. " +
-                "Selection now has <white>${selection.parts().size}<gray> part(s).",
+                "Selection now has <white>${selection.parts().size}<gray> part(s)." +
+                SAVE_PROMPT,
         )
         // Committing consumes the corners, so the label has to drop back to "nothing marked".
         wand.refresh(player)
@@ -107,5 +108,14 @@ internal class MarqueeListener(
 
     private companion object {
         const val PERMISSION = "parcel.edit"
+
+        /**
+         * Offered on the end of the commit line, not a line of its own - it is a suggestion, and a
+         * fresh line after every single commit would nag. Suggests rather than runs, because a
+         * region needs a name only the builder knows.
+         */
+        const val SAVE_PROMPT =
+            " <hover:show_text:'Puts /mq save in your chat - add a name'>" +
+                "<click:suggest_command:'/mq save '><aqua>[Save now?]</aqua></click></hover>"
     }
 }
