@@ -39,9 +39,16 @@ internal object MarkedRegions : Listener {
     /** @return the key that was cleared, or null if nothing was selected */
     fun clear(player: Player): NamespacedKey? = active.remove(player.uniqueId)
 
-    /** Drop this key for everyone - for when the region itself goes away. */
-    fun forget(key: NamespacedKey) {
-        active.entries.removeIf { it.value == key }
+    /**
+     * Drop this key for everyone - for when the region itself goes away.
+     *
+     * @return who had it marked, so their wands can be relabelled. Without this the label kept
+     *   naming a region that no longer existed.
+     */
+    fun forget(key: NamespacedKey): Set<UUID> {
+        val affected = active.entries.filter { it.value == key }.map { it.key }.toSet()
+        affected.forEach(active::remove)
+        return affected
     }
 
     fun forget(player: Player) {

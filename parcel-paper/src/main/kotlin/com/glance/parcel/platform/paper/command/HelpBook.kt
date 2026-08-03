@@ -243,9 +243,14 @@ internal object HelpBook {
         steps, kept on disk.
 
         <reset><click:suggest_command:'/parcel delete '><u>delete name</u></click>
-        <dark_gray>removes it. Tells you
-        what was using it, and
-        asks to confirm.
+        <dark_gray>removes it. Asks first
+        only if something is
+        using it.
+
+        <reset><click:run_command:'/parcel restore'><u>/parcel restore</u></click>
+        <dark_gray>puts the last deleted
+        one back. One step,
+        lost on restart.
         """.trimIndent(),
 
         // 12 - rendering

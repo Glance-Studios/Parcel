@@ -3,6 +3,7 @@ package com.glance.parcel.platform.paper
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.platform.paper.marquee.MarqueeWand
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
+import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 
@@ -48,10 +49,14 @@ internal class RegionMarking(
         return key
     }
 
-    /** The region went away. Anyone who had it marked stops, and their panels come down. */
+    /**
+     * The region went away. Anyone who had it marked stops, their panels come down, and their wand
+     * stops claiming they are working on something that no longer exists.
+     */
     fun forget(key: NamespacedKey) {
-        MarkedRegions.forget(key)
+        val affected = MarkedRegions.forget(key)
         panels.hide(key)
+        affected.mapNotNull(Bukkit::getPlayer).forEach(wand::refresh)
     }
 
     /** Nudge the wand label after a corner is marked or a part committed. */

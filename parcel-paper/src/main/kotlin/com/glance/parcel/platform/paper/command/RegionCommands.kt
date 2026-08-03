@@ -3,6 +3,7 @@ package com.glance.parcel.platform.paper.command
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.selection.Selection
+import com.glance.parcel.platform.paper.DeletedRegions
 import com.glance.parcel.platform.paper.MarkedRegions
 import com.glance.parcel.platform.paper.RegionMarking
 import org.bukkit.NamespacedKey
@@ -513,12 +514,16 @@ internal class RegionCommands(
         val region = resolve(sender, name) ?: return
         val usages = regions.usagesOf(region)
 
+        // Nothing depends on it, so there is nothing to warn about - the confirm step exists to
+        // show you who else would be affected, and with nobody affected it is friction that teaches
+        // people to click through warnings.
         if (usages.isEmpty()) {
-            Text.send(sender, "<gray>Nothing is using <aqua>${Keys.display(region.key())}<gray>.")
-        } else {
-            Text.send(sender, "<yellow>${Keys.display(region.key())} is in use by:")
-            usages.forEach { Text.raw(sender, "  <dark_gray>- <gray>$it") }
+            deleteConfirm(sender, name)
+            return
         }
+
+        Text.send(sender, "<yellow>${Keys.display(region.key())} is in use by:")
+        usages.forEach { Text.raw(sender, "  <dark_gray>- <gray>$it") }
         // Clickable, and plain red rather than the soft red used to *start* a delete - this one is
         // the deletion. The hover says so, because a click here does not ask again.
         val confirm = "/parcel delete ${Keys.display(region.key())} confirm"
@@ -526,7 +531,7 @@ internal class RegionCommands(
             sender,
             "  <gray>Run <hover:show_text:'<red>Deletes it. There is no second confirm.'>" +
                 "<click:run_command:'$confirm'><red><u>$confirm</u></red></click></hover>" +
-                "<gray> to remove it.",
+                "<gray> to remove it anyway.",
         )
     }
 
@@ -540,11 +545,21 @@ internal class RegionCommands(
 
         // Nobody can have a region marked that no longer exists, and its panels come down.
         marking.forget(region.key())
+        // Captured while it can still be read - after delete() there is nothing left to copy.
+        DeletedRegions.remember(region)
+
         if (!regions.delete(region.key())) {
             Text.error(sender, "Deletion of ${Keys.display(region.key())} was cancelled by another plugin.")
             return
         }
         Text.send(sender, "<gray>Deleted <aqua>${Keys.display(region.key())}<gray>.")
+        Text.raw(
+            sender,
+            "  <dark_gray>Its undo history is gone. " +
+                "<hover:show_text:'Puts the shape back. Lost on restart.'>" +
+                "<click:run_command:'/parcel restore'><aqua><u>restore</u></aqua></click></hover>" +
+                "<dark_gray> until the server restarts.",
+        )
     }
 
     @Command("parcel show <name>")
@@ -730,6 +745,50 @@ internal class RegionCommands(
             } else {
                 "<gray>Paused the plane for <aqua>${Keys.display(key)}<gray> where it is."
             },
+        )
+    }
+
+    /**
+     * Put back the last region deleted.
+     *
+     * One step, held in memory, gone on restart - see [DeletedRegions] for why it is deliberately
+     * not durable. The shape comes back; its ten-step edit history does not, because that was
+     * deleted with it.
+     */
+    @Command("parcel restore|undelete")
+    @Permission(EDIT)
+    fun restore(sender: CommandSender) {
+        val snapshot = DeletedRegions.peek()
+        if (snapshot == null) {
+            Text.error(sender, "Nothing to restore. Only the last deletion is kept, and not across restarts.")
+            return
+        }
+        if (regions.get(snapshot.key) != null) {
+            Text.error(sender, "${Keys.display(snapshot.key)} exists again - nothing to put back.")
+            DeletedRegions.forget(snapshot.key)
+            return
+        }
+
+        DeletedRegions.take()
+        val region = regions.create(snapshot.key, snapshot.world)
+        val editor = region.edit()
+        snapshot.parts.forEach(editor::addPart)
+        editor.commit()
+        regions.save(region)
+
+        // Restoring is a kind of creating, so it ends in the same state: marked, and drawn. You
+        // almost certainly want to look at the thing you just got back.
+        val marked = (sender as? Player)?.let { marking.mark(it, region) } ?: 0
+
+        Text.send(
+            sender,
+            "<gray>Restored <aqua>${Keys.display(snapshot.key)}<gray> with " +
+                "<white>${snapshot.parts.size}<gray> part(s).",
+        )
+        Text.raw(
+            sender,
+            if (marked > 0) "  <dark_gray>Marked and rendering. Its edit history did not come back."
+            else "  <dark_gray>Its edit history did not come back.",
         )
     }
 
