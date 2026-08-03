@@ -32,11 +32,18 @@ internal class MarqueeWand(
 
     private val tag = NamespacedKey(plugin, "marquee_wand")
 
-    fun create(): ItemStack {
+    /**
+     * A wand already labelled for whoever is receiving it.
+     *
+     * Built with the state rather than a plain name and fixed up afterwards: a wand that says
+     * "Marquee" for one tick and then changes is a flicker, and if the give path ever forgot to
+     * refresh, the label would just be wrong until the next click.
+     */
+    fun create(player: Player): ItemStack {
         val item = ItemStack(material)
         item.editMeta { meta ->
             meta.persistentDataContainer.set(tag, PersistentDataType.BYTE, 1)
-            meta.displayName(mm.deserialize("<!italic><aqua>Marquee"))
+            meta.displayName(mm.deserialize("<!italic>${labelFor(player)}"))
             meta.lore(
                 listOf(
                     line("<dark_gray>Parcel selection tool"),
@@ -63,8 +70,9 @@ internal class MarqueeWand(
                     Component.empty(),
                     line("<dark_gray>Fixing up"),
                     line("<gray>/mq undo <dark_gray>- drop the last part"),
-                    line("<gray>/mq cancel <dark_gray>- unmark the corners, keep the parts"),
-                    line("<gray>/mq deselect <dark_gray>- start over"),
+                    line("<gray>/mq cancel <dark_gray>- drop the two corners, keep the parts"),
+                    line("<gray>/mq deselect <dark_gray>- clear the selection, start over"),
+                    line("<gray>/mq clear <dark_gray>- stop working on the marked region"),
                     Component.empty(),
                     line("<dark_gray>Saving clears the selection. Nothing is pending."),
                     line("<dark_gray>Run <gray>/mq<dark_gray> for everything else"),

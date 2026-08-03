@@ -181,7 +181,7 @@ class ParcelPlugin : JavaPlugin() {
                 this, regions, selections, outlines, panels, styles, styleDialog, browser,
                 marking,
             ),
-            MarqueeCommands(selections, wand),
+            MarqueeCommands(selections, wand, marking),
         )
 
         // Off in production. Nothing is registered when disabled, so the calibration commands do

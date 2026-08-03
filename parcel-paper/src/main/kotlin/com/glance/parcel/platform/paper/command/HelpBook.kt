@@ -143,6 +143,7 @@ internal object HelpBook {
         <dark_gray>work on it again
         <reset><click:run_command:'/parcel unmark'><u>unmark</u></click>
         <dark_gray>stop, and hide it
+        <dark_gray>(or <reset>/mq clear<dark_gray>)
         """.trimIndent(),
 
         // 7 - the way on
@@ -236,6 +237,11 @@ internal object HelpBook {
         <reset><click:suggest_command:'/mq undo'><u>/mq undo</u></click>
         <dark_gray>drops the last part of
         your selection.
+
+        <reset><click:run_command:'/mq deselect'><u>/mq deselect</u></click>
+        <dark_gray>throws the whole
+        selection away and
+        starts over.
 
         <reset><click:suggest_command:'/parcel undo '><u>/parcel undo name</u></click>
         <dark_gray>reverts a saved region

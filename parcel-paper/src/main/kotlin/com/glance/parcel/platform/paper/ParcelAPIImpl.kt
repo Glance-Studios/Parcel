@@ -21,6 +21,6 @@ internal class ParcelAPIImpl(
 
     companion object {
         /** 0.2.0 added renders(); 0.3.0 added RegionManager.marked(). */
-        const val API_VERSION = "0.3.0"
+        const val API_VERSION = "0.4.0"
     }
 }

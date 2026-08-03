@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.glance.parcel:parcel-api:0.3.0")
+    compileOnly("com.glance.parcel:parcel-api:0.4.0")
 }
 ```
 

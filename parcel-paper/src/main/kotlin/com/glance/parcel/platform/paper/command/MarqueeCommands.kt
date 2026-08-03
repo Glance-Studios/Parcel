@@ -3,6 +3,7 @@ package com.glance.parcel.platform.paper.command
 import com.glance.parcel.api.math.BlockPos
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.selection.SelectionMode
+import com.glance.parcel.platform.paper.RegionMarking
 import com.glance.parcel.platform.paper.marquee.MarqueeWand
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.entity.Player
@@ -20,12 +21,13 @@ import org.incendo.cloud.annotations.Permission
 internal class MarqueeCommands(
     private val selections: SelectionManagerImpl,
     private val wand: MarqueeWand,
+    private val marking: RegionMarking,
 ) {
 
     @Command("marquee|mq wand|tool")
     @Permission(PERMISSION)
     fun wand(player: Player) {
-        val leftover = player.inventory.addItem(wand.create())
+        val leftover = player.inventory.addItem(wand.create(player))
         if (leftover.isEmpty()) {
             Text.send(player, "<gray>Have a marquee. <dark_gray>Left click, right click, sneak to commit.")
 
@@ -68,8 +70,9 @@ internal class MarqueeCommands(
         Text.raw(player, "  <aqua>/mq mode <flat|volume><gray> - flat ignores Y and spans world height")
         Text.raw(player, "  <aqua>/mq add<gray> / <aqua>/mq carve<gray> - commit the marked box, or cut it away")
         Text.raw(player, "  <aqua>/mq undo<gray> - remove the last committed part")
-        Text.raw(player, "  <aqua>/mq cancel<gray> - unmark the corners, keep the parts")
-        Text.raw(player, "  <aqua>/mq clear<gray> / <aqua>deselect<gray> - empty it / drop it entirely")
+        Text.raw(player, "  <aqua>/mq cancel<gray> - drop the two corners, keep the parts")
+        Text.raw(player, "  <aqua>/mq deselect<gray> - clear your selection entirely")
+        Text.raw(player, "  <aqua>/mq clear<gray> - stop working on the marked region")
         Text.raw(player, "  <aqua>/mq info<gray> - what is selected right now")
         Text.raw(player, "  <aqua>/mq save<gray> (or <aqua>create<gray>) <aqua><name><gray> - save as a new region")
         Text.raw(player, "  <aqua>/mq load <name><gray> - pull a region in here to edit it")
@@ -153,11 +156,26 @@ internal class MarqueeCommands(
         )
     }
 
+    /**
+     * Stop working on the marked region.
+     *
+     * Here as well as `/parcel unmark` because builders live in `/mq` while they are shaping
+     * things, and it matches `/ambience clear` in Motif - "clear" means drop what I am working on,
+     * in both plugins.
+     *
+     * It used to empty the selection's parts, which is what `deselect` is for. Two commands a
+     * keystroke apart doing near-identical things to the selection, while the region mark had no
+     * `/mq` route at all, was the wrong way round.
+     */
     @Command("marquee|mq clear")
     @Permission(PERMISSION)
     fun clear(player: Player) {
-        selections.get(player).clearParts()
-        Text.send(player, "<gray>Selection cleared.")
+        val key = marking.unmark(player)
+        if (key == null) {
+            Text.error(player, "No region marked. /mq deselect clears your selection instead.")
+            return
+        }
+        Text.send(player, "<gray>Unmarked <aqua>${Keys.display(key)}<gray>.")
     }
 
     @Command("marquee|mq cancel")
@@ -170,7 +188,7 @@ internal class MarqueeCommands(
         }
         Text.send(
             player,
-            "<gray>Corners unmarked. <dark_gray>${selection.parts().size} committed part(s) kept.",
+            "<gray>Corners dropped. <dark_gray>${selection.parts().size} committed part(s) kept.",
         )
     }
 
@@ -183,7 +201,7 @@ internal class MarqueeCommands(
             Text.error(player, "You have no selection.")
             return
         }
-        Text.send(player, "<gray>Deselected. Corners, parts and outline all gone.")
+        Text.send(player, "<gray>Selection cleared. <dark_gray>Corners, parts and outline all gone.")
     }
 
     @Command("marquee|mq info")
