@@ -1,4 +1,5 @@
 package com.glance.parcel.platform.paper.region
+import com.glance.parcel.platform.paper.ActiveRegions
 
 import com.glance.parcel.api.event.RegionCreateEvent
 import com.glance.parcel.api.event.RegionDeleteEvent
@@ -11,6 +12,7 @@ import com.glance.parcel.platform.paper.storage.HistoryStore
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.NamespacedKey
+import org.bukkit.entity.Player
 import org.bukkit.World
 import org.bukkit.plugin.Plugin
 import java.util.concurrent.CompletableFuture
@@ -59,6 +61,8 @@ internal class RegionManagerImpl(
             regions.values.filter { it.world() == world && it.contains(x, y, z) }
         )
     }
+
+    override fun selected(player: Player): NamespacedKey? = ActiveRegions.of(player)
 
     override fun create(key: NamespacedKey, world: World): Region =
         register(key, world, transient = false)

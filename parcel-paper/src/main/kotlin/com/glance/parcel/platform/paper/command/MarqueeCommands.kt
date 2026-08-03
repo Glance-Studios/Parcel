@@ -28,6 +28,19 @@ internal class MarqueeCommands(
         val leftover = player.inventory.addItem(wand.create())
         if (leftover.isEmpty()) {
             Text.send(player, "<gray>Have a marquee. <dark_gray>Left click, right click, sneak to commit.")
+
+            // Mode decides whether the box has a top and bottom at all, so it is worth knowing
+            // before marking anything - and one click is cheaper than reading what the words mean.
+            val mode = selections.get(player).mode()
+            val other = if (mode == SelectionMode.FLAT) SelectionMode.VOLUME else SelectionMode.FLAT
+            Text.raw(
+                player,
+                "  <dark_gray>Mode <white>${mode.name.lowercase()}<dark_gray> - " +
+                    "<hover:show_text:'Click to switch'>" +
+                    "<click:run_command:'/mq mode ${other.name.lowercase()}'>" +
+                    "<aqua><u>switch to ${other.name.lowercase()}</u></aqua></click></hover>",
+            )
+
             // The wand's own lore carries the rest, but nobody hovers an item they were just
             // handed - so point at it once, and at the guide for anyone who wants the concepts.
             Text.send(

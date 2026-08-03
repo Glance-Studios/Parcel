@@ -84,6 +84,7 @@ internal class MarqueeListener(
             selection.setCornerB(pos)
             Text.send(player, "<gray>Corner 2 at <white>${pos.x()}, ${pos.y()}, ${pos.z()}")
         }
+        wand.refresh(player)
     }
 
     private fun commit(player: Player, selection: SelectionImpl, op: Op) {
@@ -100,6 +101,8 @@ internal class MarqueeListener(
             "$verb <white>${box.sizeX()}x${box.sizeY()}x${box.sizeZ()}<gray>. " +
                 "Selection now has <white>${selection.parts().size}<gray> part(s).",
         )
+        // Committing consumes the corners, so the label has to drop back to "nothing marked".
+        wand.refresh(player)
     }
 
     private companion object {

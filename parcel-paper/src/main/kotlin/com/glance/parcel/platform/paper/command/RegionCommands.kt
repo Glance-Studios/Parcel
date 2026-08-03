@@ -2,6 +2,9 @@ package com.glance.parcel.platform.paper.command
 
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Region
+import com.glance.parcel.platform.paper.ActiveRegions
+import com.glance.parcel.platform.paper.RegionSelection
+import org.bukkit.NamespacedKey
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import com.glance.parcel.platform.paper.menu.RegionBrowser
@@ -28,6 +31,8 @@ import java.util.logging.Level
  * about what any plugin does with it. `/parcel delete` asks other plugins what they are using a
  * region for before it lets you remove it.
  */
+private const val RULE = "<dark_gray><strikethrough>                                        "
+
 internal class RegionCommands(
     private val plugin: Plugin,
     private val regions: RegionManagerImpl,
@@ -37,11 +42,33 @@ internal class RegionCommands(
     private val styles: StyleStore,
     private val styleDialog: PanelStyleDialog,
     private val browser: RegionBrowser,
+    private val regionSelection: RegionSelection,
 ) {
 
+    /**
+     * Region names, narrowed to the one you have selected.
+     *
+     * If you are working on a region, that is overwhelmingly the one you mean next - so completing
+     * a list of forty others is noise. With one selected, tab offers just it.
+     *
+     * The escape hatch matters as much as the narrowing: as soon as what you have typed does not
+     * prefix the selected region, the full list comes back. So `/parcel goto ta` still completes
+     * `tavern` while `plaza` is selected, and nobody has to deselect to reach something else.
+     */
     @Suggestions("region-keys")
-    fun regionKeys(context: CommandContext<CommandSender>, input: String): List<String> =
-        regions.all().map { Keys.display(it.key()) }
+    fun regionKeys(context: CommandContext<CommandSender>, input: String): List<String> {
+        val all = regions.all().map { Keys.display(it.key()) }
+
+        val player = context.sender() as? Player ?: return all
+        val selected = ActiveRegions.of(player)?.let(Keys::display) ?: return all
+
+        // Still in the list, or nothing typed yet - the selected one is the whole answer.
+        return if (input.isEmpty() || selected.startsWith(input, ignoreCase = true)) {
+            listOf(selected)
+        } else {
+            all
+        }
+    }
 
     @Command("parcel")
     @Permission(VIEW)
@@ -204,20 +231,56 @@ internal class RegionCommands(
         // Render it straight away. Promoting clears the selection, so its outline vanishes at the
         // same moment - without this the shape you just spent time on disappears off the screen
         // and you have to ask for it back.
-        val panelCount = panels.show(region, viewer = player)
+        // One render, not two - select() draws it as part of selecting.
+        val panelCount = regionSelection.select(player, region)
 
-        Text.send(
+        announceCreated(player, key, region.parts().size, panelCount)
+    }
+
+    /**
+     * The one message a builder reads most, so it is the one worth laying out properly.
+     *
+     * Framed top and bottom because it lands in the middle of ordinary chat and is easy to scroll
+     * past otherwise, and every line is a click. Green runs immediately, yellow drops the command
+     * into your chat box to finish - the hover text on each says which, so no legend is needed.
+     */
+    private fun announceCreated(player: Player, key: NamespacedKey, parts: Int, panelCount: Int) {
+        val name = Keys.display(key)
+
+        Text.raw(player, RULE)
+        Text.send(player, "<gray>Created <aqua>$name<gray> from <white>$parts<gray> part(s).")
+        Text.raw(
             player,
-            "<gray>Created <aqua>${Keys.display(key)}<gray> from " +
-                "<white>${region.parts().size}<gray> part(s). Your selection has been cleared.",
+            "  <dark_gray>Selected, and rendering. Your selection is cleared.",
         )
+        Text.raw(player, "")
+
         if (panelCount > 0) {
-            Text.raw(
-                player,
-                "  <dark_gray>Rendering it now. <gray>/parcel render ${Keys.display(key)}" +
-                    "<dark_gray> to toggle, <gray>/parcel style ${Keys.display(key)}<dark_gray> to recolour.",
-            )
+            bullet(player, "run", "/parcel render $name", "hide it")
+            // Flat regions follow you by default, which is right while you are looking around and
+            // wrong the moment you want to walk away and judge the shape from a distance.
+            bullet(player, "run", "/parcel follow $name", "pause the plane where it is")
         }
+        bullet(player, "run", "/parcel style $name", "recolour it")
+        bullet(player, "run", "/parcel goto $name", "fly back to it")
+        bullet(player, "run", "/parcel deselect", "deselect it")
+        bullet(player, "suggest", "/parcel append $name", "add another shape to it")
+
+        Text.raw(player, RULE)
+    }
+
+    /**
+     * @param kind `run` fires the command, `suggest` puts it in the chat box for editing
+     */
+    private fun bullet(player: Player, kind: String, command: String, what: String) {
+        val colour = if (kind == "run") "<green>" else "<yellow>"
+        val hover = if (kind == "run") "Click to run" else "Click to put this in your chat"
+        val suffix = if (kind == "run") "" else " "
+        Text.raw(
+            player,
+            "  <dark_gray>- <hover:show_text:'$hover'><click:${kind}_command:'$command$suffix'>" +
+                "$colour$command</click></hover> <dark_gray>$what",
+        )
     }
 
     @Command("parcel apply <name>")
@@ -403,6 +466,8 @@ internal class RegionCommands(
     ) {
         val region = resolve(sender, name) ?: return
 
+        // Nobody can be working on a region that no longer exists, and its panels come down.
+        regionSelection.forget(region.key())
         if (!regions.delete(region.key())) {
             Text.error(sender, "Deletion of ${Keys.display(region.key())} was cancelled by another plugin.")
             return
@@ -517,6 +582,82 @@ internal class RegionCommands(
             player,
             "<gray>Teleported to <aqua>${Keys.display(region.key())}<gray> " +
                 "<dark_gray>(${target.blockX}, ${target.blockY}, ${target.blockZ})",
+        )
+    }
+
+    /**
+     * Stop working on the current region.
+     *
+     * Hides its render too, because "selected" and "drawn on my screen" are the same thing from
+     * where a builder is standing, and leaving the panels up after deselecting would be a state
+     * with no name.
+     */
+    /**
+     * Work on a region, drawing it if it was not already.
+     *
+     * The counterpart to deselect. Creating one selects it automatically; this is for coming back
+     * to something you made earlier.
+     */
+    @Command("parcel select <name>")
+    @Permission(VIEW)
+    fun select(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String,
+    ) {
+        val region = resolve(player, name) ?: return
+        regionSelection.select(player, region)
+        Text.send(player, "<gray>Selected <aqua>${Keys.display(region.key())}<gray>, and rendering it.")
+    }
+
+    @Command("parcel deselect|unselect")
+    @Permission(VIEW)
+    fun deselect(player: Player) {
+        val key = regionSelection.deselect(player)
+        if (key == null) {
+            Text.error(player, "Nothing selected.")
+            return
+        }
+        Text.send(player, "<gray>Deselected <aqua>${Keys.display(key)}<gray>.")
+    }
+
+    /**
+     * Freeze a flat region's plane where it is, or let it follow again.
+     *
+     * Following is right while you are stood in the region looking around, and wrong the moment you
+     * want to back off and judge the footprint from a distance - the plane comes with you and you
+     * can never see it from outside. This is that toggle, without opening the style dialog.
+     *
+     * Defaults to whatever you have selected, so straight after creating one it needs no name.
+     */
+    @Command("parcel follow|freeze [name]")
+    @Permission(EDIT)
+    fun follow(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String?,
+    ) {
+        val key = name?.let(Keys::parse) ?: ActiveRegions.of(player)
+        if (key == null) {
+            Text.error(player, "Nothing selected - name a region, or create one first.")
+            return
+        }
+        val region = regions.get(key)
+        if (region == null) {
+            Text.error(player, "${Keys.display(key)} does not exist.")
+            return
+        }
+
+        val style = panels.styleFor(region)
+        val next = style.copy(follow = !style.follow)
+        styles.set(key, next)
+        if (panels.isShowing(region)) panels.show(region, next, viewer = player)
+
+        Text.send(
+            player,
+            if (next.follow) {
+                "<gray>The plane for <aqua>${Keys.display(key)}<gray> follows you again."
+            } else {
+                "<gray>Paused the plane for <aqua>${Keys.display(key)}<gray> where it is."
+            },
         )
     }
 

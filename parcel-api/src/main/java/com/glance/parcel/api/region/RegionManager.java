@@ -2,6 +2,7 @@ package com.glance.parcel.api.region;
 
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Player;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,6 +51,23 @@ public interface RegionManager {
      *
      * @throws IllegalArgumentException if a region with this key already exists
      */
+    /**
+     * The region this player is currently working on, if any.
+     *
+     * <p>Set by creating one and cleared by {@code /parcel deselect}, by deleting the region, and
+     * on quit. It is a pointer and nothing more - no lock, no ownership. Two builders can have the
+     * same region selected, and it does not stop anyone editing it.
+     *
+     * <p>Useful for narrowing your own tab completion the way Parcel narrows its own: if someone is
+     * working on a region, that is overwhelmingly the one they mean next.
+     *
+     * <p>Added in 0.3.0.
+     *
+     * @return the selected region's key, or {@code null} if nothing is selected
+     */
+    @Nullable
+    NamespacedKey selected(@NotNull Player player);
+
     @NotNull
     Region create(@NotNull NamespacedKey key, @NotNull World world);
 

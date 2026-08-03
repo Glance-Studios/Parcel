@@ -87,7 +87,7 @@ class ParcelPlugin : JavaPlugin() {
         ) ?: Material.GOLDEN_AXE.also {
             logger.warning("Unknown marquee.wand-material, falling back to GOLDEN_AXE")
         }
-        val wand = MarqueeWand(this, wandMaterial)
+        val wand = MarqueeWand(this, wandMaterial, selections)
 
         server.pluginManager.registerEvents(
             MarqueeListener(this, wand, selections, config.getBoolean("marquee.debug", false)),
@@ -160,6 +160,7 @@ class ParcelPlugin : JavaPlugin() {
             ),
         )
         server.pluginManager.registerEvents(panels, this)
+        server.pluginManager.registerEvents(ActiveRegions, this)
 
         // Registered here rather than earlier because renders() needs the panel renderer, which
         // needs its config parsed first. Nothing between reads the service - the renderers all take
@@ -171,12 +172,14 @@ class ParcelPlugin : JavaPlugin() {
         val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
 
         val browser = RegionBrowser(this, regions, panels, styleDialog)
+        val regionSelection = RegionSelection(panels, wand)
         server.pluginManager.registerEvents(browser, this)
 
         val commands = ParcelCommandManager(this)
         commands.register(
             RegionCommands(
                 this, regions, selections, outlines, panels, styles, styleDialog, browser,
+                regionSelection,
             ),
             MarqueeCommands(selections, wand),
         )

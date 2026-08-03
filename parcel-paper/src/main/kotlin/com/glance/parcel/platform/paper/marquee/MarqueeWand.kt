@@ -4,8 +4,12 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
+import com.glance.parcel.platform.paper.ActiveRegions
+import com.glance.parcel.platform.paper.command.Keys
+import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
@@ -23,6 +27,7 @@ import org.bukkit.plugin.Plugin
 internal class MarqueeWand(
     private val plugin: Plugin,
     private val material: Material,
+    private val selections: SelectionManagerImpl,
 ) {
 
     private val tag = NamespacedKey(plugin, "marquee_wand")
@@ -31,9 +36,7 @@ internal class MarqueeWand(
         val item = ItemStack(material)
         item.editMeta { meta ->
             meta.persistentDataContainer.set(tag, PersistentDataType.BYTE, 1)
-            meta.displayName(
-                mm.deserialize("<!italic><aqua>Marquee")
-            )
+            meta.displayName(mm.deserialize("<!italic><aqua>Marquee"))
             meta.lore(
                 listOf(
                     line("<dark_gray>Parcel selection tool"),
@@ -63,6 +66,49 @@ internal class MarqueeWand(
             )
         }
         return item
+    }
+
+    /**
+     * Rewrite the label on every wand this player is carrying.
+     *
+     * The wand is the thing already in their hand, so it is the cheapest place to answer "what am I
+     * doing right now" - no command, no glance at chat. It reads either the region being worked on,
+     * or how far through marking a box they are.
+     *
+     * Rewrites in place rather than replacing the stack, so it never disturbs the hotbar slot or
+     * drops anything, and it is safe to call on every click.
+     */
+    fun refresh(player: Player) {
+        val label = labelFor(player)
+        for (item in player.inventory.contents) {
+            if (!isWand(item)) continue
+            item!!.editMeta { meta -> meta.displayName(mm.deserialize("<!italic>$label")) }
+        }
+    }
+
+    private fun labelFor(player: Player): String {
+        ActiveRegions.of(player)?.let { key ->
+            return "<aqua>Marquee <dark_gray>- <gray>selected <white>${Keys.display(key)}"
+        }
+
+        val selection = selections.of(player)
+        val a = selection?.pendingA()
+        val b = selection?.pendingB()
+
+        val state = when {
+            // Both corners down: the size is what you actually want to know before committing.
+            a != null && b != null -> {
+                val x = kotlin.math.abs(a.x() - b.x()) + 1
+                val y = kotlin.math.abs(a.y() - b.y()) + 1
+                val z = kotlin.math.abs(a.z() - b.z()) + 1
+                "<white>${x}x${y}x${z}"
+            }
+
+            a != null -> "<gray>corner 1 <dark_gray>set"
+            b != null -> "<gray>corner 2 <dark_gray>set"
+            else -> "<dark_gray>nothing marked"
+        }
+        return "<aqua>Marquee <dark_gray>- <gray>selecting <dark_gray>... $state"
     }
 
     fun isWand(item: ItemStack?): Boolean {
