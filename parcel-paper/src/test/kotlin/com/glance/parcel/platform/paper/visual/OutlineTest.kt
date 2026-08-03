@@ -81,4 +81,61 @@ class OutlineTest {
         assertTrue(points(box(0, 0, 0, 2, 2, 2), spacing = 0.0).isNotEmpty())
         assertTrue(points(box(0, 0, 0, 2, 2, 2), spacing = -5.0).isNotEmpty())
     }
+
+    private fun perimeter(box: BlockBox, y: Double, spacing: Double): List<Triple<Double, Double, Double>> {
+        val out = mutableListOf<Triple<Double, Double, Double>>()
+        Outline.perimeter(box, y, spacing) { x, yy, z -> out += Triple(x, yy, z) }
+        return out
+    }
+
+    @Test
+    @DisplayName("the perimeter is flat at the requested height")
+    fun perimeterIsFlat() {
+        val all = perimeter(box(0, -64, 0, 4, 319, 4), y = 71.5, spacing = 1.0)
+
+        assertTrue(all.isNotEmpty())
+        assertTrue(all.all { it.second == 71.5 }, "every point must sit on the one plane")
+    }
+
+    @Test
+    @DisplayName("the perimeter wraps the footprint and hits all four corners")
+    fun perimeterWrapsFootprint() {
+        val all = perimeter(box(0, 0, 0, 4, 0, 4), y = 0.0, spacing = 1.0).toSet()
+
+        assertTrue(Triple(0.0, 0.0, 0.0) in all)
+        assertTrue(Triple(5.0, 0.0, 0.0) in all)
+        assertTrue(Triple(0.0, 0.0, 5.0) in all)
+        assertTrue(Triple(5.0, 0.0, 5.0) in all, "must reach max+1 on both axes")
+
+        // Every point sits on one of the four bounding lines, so nothing strays into the interior.
+        assertTrue(all.all { (x, _, z) -> x == 0.0 || x == 5.0 || z == 0.0 || z == 5.0 })
+    }
+
+    @Test
+    @DisplayName("corners are emitted once, not twice")
+    fun perimeterDoesNotDoubleCorners() {
+        val all = perimeter(box(0, 0, 0, 4, 0, 4), y = 0.0, spacing = 1.0)
+
+        assertEquals(all.size, all.toSet().size, "a duplicated corner is budget spent on nothing")
+    }
+
+    @Test
+    @DisplayName("a full-height prism costs a fraction of its box outline")
+    fun perimeterIsCheaperThanEdges() {
+        val tall = box(0, -64, 0, 4, 319, 4)
+
+        val asBox = points(tall, spacing = 1.0).size
+        val asPlane = perimeter(tall, y = 64.0, spacing = 1.0).size
+
+        // This is the whole point of the change: the vertical edges dominated the cost and showed
+        // nothing but columns disappearing into the sky.
+        assertTrue(asPlane < asBox / 50, "expected a large saving, got $asPlane vs $asBox")
+    }
+
+    @Test
+    @DisplayName("perimeter survives degenerate spacing")
+    fun perimeterDegenerateSpacing() {
+        assertTrue(perimeter(box(0, 0, 0, 2, 0, 2), y = 0.0, spacing = 0.0).isNotEmpty())
+        assertTrue(perimeter(box(0, 0, 0, 2, 0, 2), y = 0.0, spacing = -5.0).isNotEmpty())
+    }
 }

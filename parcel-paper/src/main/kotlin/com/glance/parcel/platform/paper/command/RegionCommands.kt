@@ -74,6 +74,11 @@ internal class RegionCommands(
     @Permission(VIEW)
     fun helpBook(player: Player) = HelpBook.open(player)
 
+    /** The second book. Reached by clicking the last page of the first, or typed directly. */
+    @Command("parcel help|guide more|shapes")
+    @Permission(VIEW)
+    fun helpShapes(player: Player) = HelpBook.openShapes(player)
+
     @Command("parcel menu|browse")
     @Permission(VIEW)
     fun menu(player: Player) = browser.open(player)

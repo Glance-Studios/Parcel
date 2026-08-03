@@ -28,6 +28,13 @@ internal class MarqueeCommands(
         val leftover = player.inventory.addItem(wand.create())
         if (leftover.isEmpty()) {
             Text.send(player, "<gray>Have a marquee. <dark_gray>Left click, right click, sneak to commit.")
+            // The wand's own lore carries the rest, but nobody hovers an item they were just
+            // handed - so point at it once, and at the guide for anyone who wants the concepts.
+            Text.send(
+                player,
+                "<dark_gray>Hover it for the full controls, or read " +
+                    "<click:run_command:'/parcel help'><aqua><u>/parcel help</u></aqua></click><dark_gray>.",
+            )
         } else {
             // Never silently drop it on the floor - a wand in a lava pit is a confusing failure.
             Text.error(player, "Your inventory is full.")

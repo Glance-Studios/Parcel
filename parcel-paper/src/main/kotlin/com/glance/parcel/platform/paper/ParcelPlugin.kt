@@ -69,10 +69,6 @@ class ParcelPlugin : JavaPlugin() {
                 SelectionMode.FLAT
             },
         )
-        val api = ParcelAPIImpl(regions, selections)
-
-        server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
-
         outlines = OutlineRenderer(
             plugin = this,
             regions = regions,
@@ -82,6 +78,7 @@ class ParcelPlugin : JavaPlugin() {
                 range = config.getDouble("outline.range", 48.0),
                 spacing = config.getDouble("outline.spacing", 1.0),
                 maxPoints = config.getInt("outline.max-points", 600),
+                flatOffset = config.getDouble("outline.flat-offset", 0.0),
             ),
         )
 
@@ -115,7 +112,7 @@ class ParcelPlugin : JavaPlugin() {
                 maxPoints = config.getInt("panels.wireframe.max-points", 900),
                 flatOffset = config.getInt("panels.flat-offset", 1),
                 followRadius = config.getDouble("panels.follow.radius", 32.0),
-                followOffset = config.getDouble("panels.follow.offset", 3.0),
+                followOffset = config.getDouble("panels.wireframe.follow-offset", 0.0),
             ),
         )
 
@@ -163,6 +160,13 @@ class ParcelPlugin : JavaPlugin() {
             ),
         )
         server.pluginManager.registerEvents(panels, this)
+
+        // Registered here rather than earlier because renders() needs the panel renderer, which
+        // needs its config parsed first. Nothing between reads the service - the renderers all take
+        // regions and selections directly - and consumers are told to wait for ParcelReadyEvent
+        // regardless, which still fires last.
+        val api = ParcelAPIImpl(regions, selections, RenderManagerImpl(panels, regions))
+        server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
 
         val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
 

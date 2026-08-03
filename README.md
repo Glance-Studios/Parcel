@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.glance.parcel:parcel-api:0.1.0")
+    compileOnly("com.glance.parcel:parcel-api:0.2.0")
 }
 ```
 
@@ -105,6 +105,38 @@ selection.applyTo(region);
 
 `promote` clears the selection deliberately: a Parcel selection accumulates parts, so leaving it
 populated means the next region a builder draws silently inherits the last one's shape.
+
+### Showing a region
+
+`renders()` shows and hides a region's visual - the panels or wireframe it was styled with.
+
+```java
+if (!Parcel.api().renders().isRendering(key)) {
+    Parcel.api().renders().render(region, player);
+}
+Parcel.api().renders().hide(key);
+```
+
+It exists because the only alternative was dispatching `/parcel render`, which is a **toggle** -
+and with no way to ask what is currently rendering, a consumer could only flip. Any flip it had not
+made itself put the two out of step. This lets callers set the state they want.
+
+Rendering is **per region, not per player**. Panels are real display entities, so a region is
+either rendered or it is not; the `viewer` argument decides who sees it and where a cross-section
+plane sits, not whether a second caller gets their own copy.
+
+Added in 0.2.0 - feature-detect with `apiVersion()` if you need to support 0.1.0 as well.
+
+### Flat regions are drawn as a cross-section
+
+A flat region spans the world's full height, so its true outline includes four verticals running
+from bedrock to the build limit. Correct, useless to look at, and they bury whatever you were
+trying to see.
+
+Both particle visualisers therefore draw flat regions as a **footprint at the viewer's own height**,
+following them as they move - the selection outline and the wireframe alike. Membership is
+untouched: a player at Y 200 is still inside a region whose outline is drawn at their feet. Only the
+picture changes.
 
 ## Meshing
 

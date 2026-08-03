@@ -140,6 +140,13 @@ panels:
     # evenly instead of the first region using the whole budget.
     max-points: 900
 
+    # How far BELOW your feet a followed flat region's outline sits.
+    #
+    # Separate from panels.follow.offset and zero on purpose. A solid display plane at eye level is
+    # in your face, so panels drop a few blocks to stay readable; a particle outline is not, and
+    # sitting it exactly at your feet is what makes it read the same as the selection outline.
+    follow-offset: 0.0
+
 outline:
   # Particle outlines of your selection, and of any region you /parcel show.
   # Sent per player, so guides are never visible to anyone else.
@@ -157,3 +164,11 @@ outline:
   # Hard ceiling on particles per player per pass, shared across every box being drawn, so a large
   # selection degrades evenly instead of the first part using the whole budget.
   max-points: 600
+
+  # Flat (prism) shapes are drawn as a cross-section at your own height rather than as a real box,
+  # matching what the display panels do. Drawing the true shape meant four columns running from
+  # bedrock to the build limit, which looked like a bug and told you nothing the footprint did not.
+  #
+  # This is how far above your feet that outline sits. 0 puts it at floor level, which is usually
+  # what you want when marking corners; raise it if terrain keeps swallowing the line.
+  flat-offset: 0.0

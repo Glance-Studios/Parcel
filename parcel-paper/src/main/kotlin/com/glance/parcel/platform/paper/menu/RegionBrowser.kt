@@ -81,6 +81,7 @@ internal class RegionBrowser(
     }
 
     private fun icon(region: Region): ItemStack {
+        val showing = panels.isShowing(region)
         val style = panels.styleFor(region)
         // Pane matching how the region renders, so the menu reads the same as the world.
         val material = runCatching {
@@ -113,7 +114,13 @@ internal class RegionBrowser(
 
         lore += Component.empty()
         lore += line("<gray>Left <dark_gray>teleport")
-        lore += line("<gray>Right <dark_gray>${if (panels.isShowing(region)) "hide" else "render"}")
+        // Soft red rather than the usual grey: this is the one entry whose action changes meaning
+        // depending on state, so it should not read identically in both.
+        lore += if (showing) {
+            line("<gray>Right <color:#e57373>hide")
+        } else {
+            line("<gray>Right <dark_gray>render")
+        }
         lore += line("<gray>Shift-left <dark_gray>style")
         lore += line("<gray>Shift-right <dark_gray>delete")
 
@@ -121,6 +128,9 @@ internal class RegionBrowser(
             editMeta { meta ->
                 meta.displayName(mm.deserialize("<!italic><aqua>${Keys.display(region.key())}"))
                 meta.lore(lore)
+                // Glint marks what is currently drawn in the world, so a glance at the menu
+                // answers "what have I got showing" without reading every entry's lore.
+                meta.setEnchantmentGlintOverride(showing)
             }
         }
     }

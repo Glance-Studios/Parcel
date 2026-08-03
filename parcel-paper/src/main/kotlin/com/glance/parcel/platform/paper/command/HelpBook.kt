@@ -10,60 +10,57 @@ import org.bukkit.inventory.meta.BookMeta
 /**
  * The guide, as a book you can read in game.
  *
- * A wall of command lines does not explain Parcel, because the confusing parts are not the commands
- * - they are the concepts. A region is a *list of parts* rather than a shape; apply and append do
- * different things; flat regions are drawn as something other than what they are. Every one of
- * those has caused real confusion, so the book leads with them and lists commands afterwards.
+ * Two books rather than one long one. The first is the daily job - get the tool, pick a mode,
+ * select, save, look at it - and it ends by offering the second. A builder who only ever draws
+ * simple regions can stop after seven pages and still be right.
+ *
+ * The second holds the things that have actually caused confusion: a region is a *list of parts*
+ * rather than a shape, apply and append do different things, and flat regions are drawn as
+ * something other than what they are. Important, but not day one.
  *
  * Opened virtually with [Player.openBook], so nothing is added to the inventory.
  */
 internal object HelpBook {
 
-    fun open(player: Player) {
+    /** The daily job, in seven pages. */
+    fun open(player: Player) = show(player, "Parcel", EVERYDAY)
+
+    /** Everything else, opened from the last page of the first book. */
+    fun openShapes(player: Player) = show(player, "Parcel - Shapes", SHAPES)
+
+    private fun show(player: Player, title: String, pages: List<String>) {
         val book = ItemStack(Material.WRITTEN_BOOK)
         book.editMeta(BookMeta::class.java) { meta ->
-            meta.title(mm.deserialize("Parcel"))
+            meta.title(mm.deserialize(title))
             meta.author(mm.deserialize("Glance Studios"))
-            meta.pages(PAGES.map(mm::deserialize))
+            meta.pages(pages.map(mm::deserialize))
         }
         player.openBook(book)
     }
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
 
-    private val PAGES: List<String> = listOf(
+    private val EVERYDAY: List<String> = listOf(
+
+        // ------------------------------------------------------------------ everyday
         // 1 - what it is
         """
         <dark_gray><b>PARCEL</b>
 
         <reset>Regions of any shape,
-        built by adding and
-        cutting away boxes.
+        drawn in game.
 
-        <dark_gray>A region is not one
-        shape. It is a list of
-        parts, each either
-        <dark_green>added<dark_gray> or <dark_red>carved<dark_gray>,
-        applied in order.
+        <dark_gray>Mark two corners, add
+        the box, save it. Other
+        plugins then bind to
+        the region by name.
+
+        <dark_gray>The next few pages are
+        all you need day to
+        day.
         """.trimIndent(),
 
-        // 2 - why that matters
-        """
-        <dark_gray><b>WHY PARTS</b>
-
-        <reset>Because order is kept,
-        nothing is destroyed.
-
-        <dark_gray>Carve a hole, then add
-        something back inside
-        it. Later wins.
-
-        Undo is exact - it
-        just drops the last
-        part.
-        """.trimIndent(),
-
-        // 3 - the wand
+        // 2 - the wand
         """
         <dark_gray><b>THE MARQUEE</b>
 
@@ -80,7 +77,7 @@ internal object HelpBook {
         <dark_red>carve<dark_gray> it away
         """.trimIndent(),
 
-        // 4 - modes
+        // 3 - modes
         """
         <dark_gray><b>FLAT vs VOLUME</b>
 
@@ -95,7 +92,7 @@ internal object HelpBook {
         corners' Y. A box.
         """.trimIndent(),
 
-        // 5 - seeing it
+        // 4 - seeing it
         """
         <dark_gray><b>SEEING IT</b>
 
@@ -104,14 +101,14 @@ internal object HelpBook {
 
         <dark_green>green<dark_gray> added part
         <dark_red>red<dark_gray> carved part
-        <dark_aqua>cyan<dark_gray> the box you have
+        <dark_aqua>cyan<dark_gray> box you have
         marked but not yet
         committed
 
         <dark_gray>Nothing is saved yet.
         """.trimIndent(),
 
-        // 6 - saving
+        // 5 - saving
         """
         <dark_gray><b>SAVING</b>
 
@@ -127,7 +124,73 @@ internal object HelpBook {
         real thing.
         """.trimIndent(),
 
-        // 7 - the three verbs
+        // 6 - looking at a saved one
+        """
+        <dark_gray><b>LOOKING AT ONE</b>
+
+        <reset><click:run_command:'/parcel menu'><u>/parcel menu</u></click>
+        <dark_gray>every region, with
+        click actions.
+
+        <reset><click:suggest_command:'/parcel render '><u>render name</u></click>
+        <dark_gray>draw it
+        <reset><click:suggest_command:'/parcel goto '><u>goto name</u></click>
+        <dark_gray>fly to it
+        <reset><click:suggest_command:'/parcel undo '><u>undo name</u></click>
+        <dark_gray>put it back
+        """.trimIndent(),
+
+        // 7 - the way on
+        """
+        <dark_gray><b>MORE</b>
+
+        <reset>That is the daily job.
+
+        <dark_gray>There is a second book
+        for shapes that are not
+        just a box - carving,
+        reshaping a saved
+        region, colours, and
+        why a flat region looks
+        the way it does.
+
+        <reset><click:run_command:'/parcel help more'><u>Open it</u></click>
+        """.trimIndent(),
+    )
+
+    private val SHAPES: List<String> = listOf(
+        // 1 - what this is
+        """
+        <dark_gray><b>SHAPES</b>
+
+        <reset>The other half.
+
+        <dark_gray>For regions that are
+        not a single box, and
+        for changing ones you
+        already saved.
+
+        <reset><click:run_command:'/parcel help'><u>Back to the basics</u></click>
+        """.trimIndent(),
+
+        // 8 - why parts
+        """
+        <dark_gray><b>WHY PARTS</b>
+
+        <reset>A region is not one
+        shape. It is a list of
+        parts, each either
+        <dark_green>added<dark_gray> or <dark_red>carved<dark_gray>,
+        applied in order.
+
+        <dark_gray>Because order is kept,
+        nothing is destroyed.
+        Carve a hole, then add
+        something back inside
+        it. Later wins.
+        """.trimIndent(),
+
+        // 9 - the three verbs
         """
         <dark_gray><b>CHANGING ONE</b>
 
@@ -144,7 +207,7 @@ internal object HelpBook {
         your selection.
         """.trimIndent(),
 
-        // 8 - the round trip
+        // 10 - the round trip
         """
         <dark_gray><b>THE ROUND TRIP</b>
 
@@ -161,7 +224,7 @@ internal object HelpBook {
         region is untouched.
         """.trimIndent(),
 
-        // 9 - undo
+        // 11 - undo
         """
         <dark_gray><b>IF IT GOES WRONG</b>
 
@@ -175,7 +238,7 @@ internal object HelpBook {
         steps, kept on disk.
         """.trimIndent(),
 
-        // 10 - rendering
+        // 12 - rendering
         """
         <dark_gray><b>RENDERING</b>
 
@@ -191,7 +254,7 @@ internal object HelpBook {
         between them.
         """.trimIndent(),
 
-        // 11 - flat rendering
+        // 13 - flat rendering
         """
         <dark_gray><b>FLAT REGIONS</b>
 
@@ -208,7 +271,7 @@ internal object HelpBook {
         real extent.
         """.trimIndent(),
 
-        // 12 - style
+        // 14 - style
         """
         <dark_gray><b>COLOUR</b>
 
@@ -224,7 +287,7 @@ internal object HelpBook {
         no entities at all
         """.trimIndent(),
 
-        // 13 - sharing
+        // 15 - sharing
         """
         <dark_gray><b>SHARED</b>
 
@@ -241,7 +304,7 @@ internal object HelpBook {
         <dark_gray>shows who uses what.
         """.trimIndent(),
 
-        // 14 - reference
+        // 16 - reference
         """
         <dark_gray><b>EVERYTHING ELSE</b>
 

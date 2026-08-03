@@ -34,6 +34,13 @@ internal class WireframeRenderer(
         val maxPoints: Int,
         val flatOffset: Int,
         val followRadius: Double,
+        /**
+         * How far below the viewer's feet a followed cross-section sits.
+         *
+         * Separate from the solid panels' own follow offset, and zero by default. A solid plane at
+         * eye level is in your face, so panels drop a few blocks; a particle outline is not, and
+         * sitting it exactly at your feet is what makes it read the same as the selection outline.
+         */
         val followOffset: Double,
     )
 
@@ -80,6 +87,7 @@ internal class WireframeRenderer(
     private fun draw(player: Player, region: Region, style: PanelStyle, budget: Int): Int {
         val mesh = runCatching { DisplayMesh.of(region, DisplayMesh.groundY(region, settings.flatOffset)) }.getOrNull() ?: return 0
         val dust = Particle.DustOptions(style.colour, style.particleSize)
+        val flat = DisplayMesh.isCrossSection(region)
 
         val px = player.location.x
         val py = player.location.y
@@ -89,7 +97,7 @@ internal class WireframeRenderer(
         // Wireframe is redrawn from scratch every pass and is already per player, so following is
         // just an offset applied at draw time - no interpolation, and each viewer gets the plane
         // under their own feet rather than under whoever happens to be nearest.
-        val followShift = if (style.follow && DisplayMesh.isCrossSection(region)) {
+        val followShift = if (style.follow && flat) {
             val box = region.bounds()
             val dx = maxOf(box.min().x() - px, 0.0, px - (box.max().x() + 1.0))
             val dz = maxOf(box.min().z() - pz, 0.0, pz - (box.max().z() + 1.0))
@@ -103,24 +111,34 @@ internal class WireframeRenderer(
         }
 
         var used = 0
+        val emit = { x: Double, rawY: Double, z: Double ->
+            if (used < budget) {
+                val y = rawY + followShift
+                val dx = x - px
+                val dy = y - py
+                val dz = z - pz
+                if (dx * dx + dy * dy + dz * dz <= rangeSq) {
+                    used++
+                    player.spawnParticle(Particle.DUST, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, dust)
+                }
+            }
+        }
+
         for (quad in mesh) {
             if (used >= budget) break
-            Wireframe.points(
-                quad,
-                style.gridSpacing.toDouble(),
-                settings.resolution,
-                settings.lift,
-            ) { x, rawY, z ->
-                if (used < budget) {
-                    val y = rawY + followShift
-                    val dx = x - px
-                    val dy = y - py
-                    val dz = z - pz
-                    if (dx * dx + dy * dy + dz * dz <= rangeSq) {
-                        used++
-                        player.spawnParticle(Particle.DUST, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, dust)
-                    }
-                }
+            if (flat) {
+                // A flat region is one horizontal sheet, and a lattice across it reads as a floor
+                // rather than a boundary. Outlining each meshed rectangle gives the same look as
+                // the selection outline while still showing carved holes as real holes.
+                Wireframe.outline(quad, settings.resolution, settings.lift, emit)
+            } else {
+                Wireframe.points(
+                    quad,
+                    style.gridSpacing.toDouble(),
+                    settings.resolution,
+                    settings.lift,
+                    emit,
+                )
             }
         }
         return used

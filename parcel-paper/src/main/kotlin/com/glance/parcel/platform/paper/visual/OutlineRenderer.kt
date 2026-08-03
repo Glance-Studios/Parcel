@@ -1,9 +1,10 @@
 package com.glance.parcel.platform.paper.visual
 
-import com.glance.parcel.api.math.BlockBox
 import com.glance.parcel.api.region.Op
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
+import com.glance.parcel.api.shape.Prism
+import com.glance.parcel.api.shape.Shape
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
 import org.bukkit.Color
 import org.bukkit.NamespacedKey
@@ -39,6 +40,8 @@ internal class OutlineRenderer(
         val range: Double,
         val spacing: Double,
         val maxPoints: Int,
+        /** How far above the viewer's feet a flat cross-section sits. */
+        val flatOffset: Double,
     )
 
     /** Saved regions a player has asked to see, via `/parcel show`. */
@@ -93,11 +96,11 @@ internal class OutlineRenderer(
 
         selection.parts().forEach { part ->
             val colour = if (part.op() == Op.ADD) ADD else CARVE
-            draw(player, part.shape().bounds(), colour, budget)
+            draw(player, part.shape(), colour, budget)
         }
 
         // The box the player is about to commit, so corners are visible before they mean anything.
-        selections.get(player).pendingShape()?.let { draw(player, it.bounds(), PENDING, budget) }
+        selections.get(player).pendingShape()?.let { draw(player, it, PENDING, budget) }
     }
 
     private fun drawWatched(player: Player, budget: Budget) {
@@ -110,33 +113,48 @@ internal class OutlineRenderer(
             if (region.world() != player.world || region.isEmpty()) return@forEach
             region.parts().forEach { part ->
                 val colour = if (part.op() == Op.ADD) WATCHED else CARVE
-                draw(player, part.shape().bounds(), colour, budget)
+                draw(player, part.shape(), colour, budget)
             }
         }
     }
 
-    private fun draw(player: Player, box: BlockBox, colour: Particle.DustOptions, budget: Budget) {
+    /**
+     * A prism is drawn as a cross-section at the viewer's height; everything else as a real box.
+     *
+     * Matching what the display panels do for the same reason. A prism spans the full world height,
+     * so its outline used to include four verticals running from bedrock to the build limit -
+     * columns shooting into the sky that read as a bug, told you nothing the footprint did not, and
+     * ate the particle budget on the way. The footprint is the whole of the information.
+     */
+    private fun draw(player: Player, shape: Shape, colour: Particle.DustOptions, budget: Budget) {
         if (budget.exhausted) return
 
-        val px = player.location.x
-        val py = player.location.y
-        val pz = player.location.z
+        val box = shape.bounds()
+        val eye = player.location
         val rangeSq = settings.range * settings.range
 
-        // Only the part of the outline near the viewer is drawn. That is what makes a full-height
-        // prism affordable: its 384-block vertical edges would otherwise be ~1500 points on their
-        // own, and you can only see a few blocks of them anyway.
-        Outline.edges(box, settings.spacing) { x, y, z ->
+        val emit = { x: Double, y: Double, z: Double ->
             if (!budget.exhausted) {
-                val dx = x - px
-                val dy = y - py
-                val dz = z - pz
+                val dx = x - eye.x
+                val dy = y - eye.y
+                val dz = z - eye.z
                 if (dx * dx + dy * dy + dz * dz <= rangeSq) {
                     budget.spend()
                     player.spawnParticle(Particle.DUST, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, colour)
                 }
             }
         }
+
+        if (shape is Prism) {
+            // The viewer's own Y, continuous rather than block-snapped, so the plane rides with
+            // them instead of stepping a block at a time as they walk up a slope.
+            Outline.perimeter(box, eye.y + settings.flatOffset, settings.spacing, emit)
+            return
+        }
+
+        // Only the part of the outline near the viewer is drawn, which is what keeps a large box
+        // affordable - you can only see a few blocks of a long edge anyway.
+        Outline.edges(box, settings.spacing, emit)
     }
 
     @EventHandler
