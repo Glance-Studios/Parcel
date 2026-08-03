@@ -56,9 +56,26 @@ internal class PanelRenderer(
     private fun regionOf(key: NamespacedKey) = regions.get(key)
 
     /** Explicit choice, then the region's stored default, then the config default. */
+    /**
+     * This region's own style, else the saved default, else the config's.
+     *
+     * Three tiers rather than two: the config is what a fresh install starts from, and the saved
+     * default is what an operator changed it to. Without the middle one, editing the default would
+     * mean editing a file and rebooting.
+     */
     fun styleFor(region: Region): PanelStyle =
-        styles.get(region.key()) ?: settings.defaultStyle
+        styles.get(region.key()) ?: styles.default() ?: settings.defaultStyle
 
+    /** What a region with no style of its own currently gets. */
+    fun defaultStyle(): PanelStyle = styles.default() ?: settings.defaultStyle
+
+    /**
+     * The config's values, ignoring any saved default.
+     *
+     * Only for going back to factory settings. Do NOT use this to seed an editor: it is not what
+     * regions are drawn with the moment somebody saves a default, and an editor that opens on the
+     * wrong values writes them straight back on Save.
+     */
     fun settingsDefaultStyle(): PanelStyle = settings.defaultStyle
 
     data class Settings(
@@ -297,8 +314,35 @@ internal class PanelRenderer(
         if (active.containsKey(region.key())) show(region)
     }
 
-    fun hideAll() {
-        active.keys.toList().forEach(::hide)
+    /**
+     * Redraw everything currently on screen that has no style of its own.
+     *
+     * For when the saved default changes: those regions are already drawn with the old values baked
+     * in, and without this the edit would only appear the next time each was toggled.
+     *
+     * @return how many were redrawn
+     */
+    fun refreshInherited(): Int {
+        // Snapshot first - show() writes back into both maps.
+        val keys = (active.keys + wireframes.showing()).toList()
+        val stale = keys.filter { styles.get(it) == null }.mapNotNull(::regionOf)
+        stale.forEach { show(it) }
+        return stale.size
+    }
+
+    /**
+     * Hide every render, panels and wireframes alike.
+     *
+     * Wireframe regions are deliberately NOT in [active] - they spawn no entities - so walking that
+     * map alone left every particle grid drawing. Counted as one set because "hide all" that leaves
+     * something on screen is worse than no command at all.
+     *
+     * @return how many regions stopped being drawn
+     */
+    fun hideAll(): Int {
+        val keys = (active.keys + wireframes.showing()).toList()
+        keys.forEach(::hide)
+        return keys.size
     }
 
     fun start() {
@@ -346,13 +390,18 @@ internal class PanelRenderer(
      * range, else on the ground.
      */
     private fun flatHeightFor(region: Region, viewer: Player?): Int {
-        if (!DisplayMesh.isCrossSection(region)) return DisplayMesh.groundY(region, settings.flatOffset)
+        // The per-region nudge applies either way - whether the plane is pinned to the ground or
+        // riding under a player, "a bit higher" means the same thing.
+        val nudge = styleFor(region).heightOffset
+        if (!DisplayMesh.isCrossSection(region)) {
+            return DisplayMesh.groundY(region, settings.flatOffset) + nudge
+        }
 
         val subject = viewer?.takeIf { it.world == region.world() }
             ?: nearestPlayer(region)
-            ?: return DisplayMesh.groundY(region, settings.flatOffset)
+            ?: return DisplayMesh.groundY(region, settings.flatOffset) + nudge
 
-        return Math.floor(subject.location.y - settings.follow.offset).toInt()
+        return Math.floor(subject.location.y - settings.follow.offset).toInt() + nudge
     }
 
     private fun nearestPlayer(region: Region): Player? = plugin.server.onlinePlayers

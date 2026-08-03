@@ -266,13 +266,16 @@ internal object HelpBook {
         <reset><click:suggest_command:'/parcel render '><u>/parcel render name</u></click>
 
         <dark_gray>Draws its surface as
-        solid panels.
-
-        Touching regions merge
-        - two boxes side by
-        side render as one
+        solid panels. Touching
+        regions merge into one
         shape, with no wall
         between them.
+
+        <reset><click:run_command:'/parcel render'><u>/parcel render</u></click>
+        <dark_gray>alone draws every
+        region here.
+        <reset><click:run_command:'/parcel hide'><u>/parcel hide</u></click>
+        <dark_gray>clears them.
         """.trimIndent(),
 
         // 13 - flat rendering
@@ -303,14 +306,16 @@ internal object HelpBook {
 
         <reset><click:suggest_command:'/parcel style '><u>/parcel style name</u></click>
 
-        <dark_gray>Sliders for colour and
-        opacity, kept per
-        region.
+        <dark_gray>Sliders for colour
+        and opacity.
+
+        <reset><click:run_command:'/parcel style'><u>/parcel style</u></click>
+        <dark_gray>alone sets the
+        default for all.
 
         <reset>text<dark_gray> any colour
         <reset>block<dark_gray> stained glass
-        <reset>wireframe<dark_gray> a grid,
-        no entities at all
+        <reset>wireframe<dark_gray> a grid
         """.trimIndent(),
 
         // 15 - sharing

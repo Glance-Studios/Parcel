@@ -27,6 +27,14 @@ internal data class PanelStyle(
      * real surface to sit on.
      */
     val follow: Boolean = true,
+    /**
+     * Blocks to raise or lower a flat region's plane, on top of whatever the config says.
+     *
+     * Per region because the right height is a property of the place: a plane that reads well over
+     * open ground disappears into a hillside twenty blocks away, and one that clears a roof is
+     * absurd in a cellar. Only cross-sections have a plane to move, so it does nothing elsewhere.
+     */
+    val heightOffset: Int = 0,
 ) {
     val colour: Color get() = Color.fromRGB(red, green, blue)
 

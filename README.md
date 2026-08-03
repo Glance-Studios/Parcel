@@ -202,7 +202,7 @@ Everything lives under `plugins/Parcel/`:
 | `config.yml` | options, heavily commented |
 | `regions/<namespace>/<key>.yml` | the regions themselves, purely geometric |
 | `history/<namespace>/<key>.yml` | previous shapes, for `/parcel undo` |
-| `styles.yml` | per-region colour and render settings |
+| `styles.yml` | colour and render settings - one section per region, plus a `default` every region without its own inherits |
 
 Regions, history and styles are separate on purpose: a region's file stays current-state only, so a
 corrupt or deleted style or history can never damage the geometry it describes.
@@ -212,3 +212,6 @@ corrupt or deleted style or history can never damage the geometry it describes.
 `/parcel help` opens an in-game guide. It leads with the concepts rather than the command list,
 because the commands are the easy part - a region being a *list of parts* rather than a shape, and
 the difference between `apply` and `append`, are what actually catch people out.
+
+**[Full command reference, with permissions and the wand's bindings](docs/COMMANDS.md)** for when
+you want the list rather than the tutorial.

@@ -68,6 +68,14 @@ internal class WireframeRenderer(
 
     fun isShowing(key: NamespacedKey): Boolean = active.containsKey(key)
 
+    /** Snapshot of what is drawn, for callers that need to redraw some of it. */
+    fun showing(): Set<NamespacedKey> = active.keys.toSet()
+
+    /** Stop drawing everything, leaving the task running. Unlike [stop], this can be resumed. */
+    fun hideAll() {
+        active.clear()
+    }
+
     private fun tick() {
         if (active.isEmpty()) return
 
@@ -85,7 +93,10 @@ internal class WireframeRenderer(
     }
 
     private fun draw(player: Player, region: Region, style: PanelStyle, budget: Int): Int {
-        val mesh = runCatching { DisplayMesh.of(region, DisplayMesh.groundY(region, settings.flatOffset)) }.getOrNull() ?: return 0
+        val nudge = style.heightOffset
+        val mesh = runCatching {
+            DisplayMesh.of(region, DisplayMesh.groundY(region, settings.flatOffset) + nudge)
+        }.getOrNull() ?: return 0
         val dust = Particle.DustOptions(style.colour, style.particleSize)
         val flat = DisplayMesh.isCrossSection(region)
 
@@ -102,7 +113,7 @@ internal class WireframeRenderer(
             val dx = maxOf(box.min().x() - px, 0.0, px - (box.max().x() + 1.0))
             val dz = maxOf(box.min().z() - pz, 0.0, pz - (box.max().z() + 1.0))
             if (dx * dx + dz * dz <= settings.followRadius * settings.followRadius) {
-                (py - settings.followOffset) - (mesh.firstOrNull()?.origin()?.y()?.toDouble() ?: py)
+                (py - settings.followOffset + nudge) - (mesh.firstOrNull()?.origin()?.y()?.toDouble() ?: py)
             } else {
                 0.0
             }

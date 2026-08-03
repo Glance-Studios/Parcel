@@ -15,10 +15,12 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.Plugin
+import java.util.UUID
 
 /**
  * Browser for every saved region.
@@ -53,9 +55,23 @@ internal class RegionBrowser(
         override fun getInventory(): Inventory = view
     }
 
+    /**
+     * Whose delete is one click from happening, and on what.
+     *
+     * The confirm has to live in the menu rather than in chat: chat links cannot be clicked with an
+     * inventory open, so routing the prompt out to chat meant closing the screen you were working
+     * in. Armed against a specific key, so a stale arm can never delete a region you have since
+     * scrolled to.
+     */
+    private val armed = HashMap<UUID, NamespacedKey>()
+
     fun open(player: Player, page: Int = 0) {
         val all = regions.all().sortedBy { it.key().toString() }
         if (all.isEmpty()) {
+            // This is also the refresh path, so the menu may be open with the entry that was just
+            // deleted still in it. Returning without closing left that stale item on screen,
+            // clickable, for a region that no longer exists.
+            if (player.openInventory.topInventory.holder is Holder) player.closeInventory()
             Text.error(player, "There are no regions yet. Build a selection and /parcel save one.")
             return
         }
@@ -72,7 +88,10 @@ internal class RegionBrowser(
         )
         holder.view = inventory
 
-        shown.forEachIndexed { index, region -> inventory.setItem(index, icon(region)) }
+        val pending = armed[player.uniqueId]
+        shown.forEachIndexed { index, region ->
+            inventory.setItem(index, icon(region, armed = region.key() == pending))
+        }
 
         if (clamped > 0) inventory.setItem(PREV_SLOT, nav("<gray>Previous page"))
         if (clamped < pages - 1) inventory.setItem(NEXT_SLOT, nav("<gray>Next page"))
@@ -80,7 +99,7 @@ internal class RegionBrowser(
         player.openInventory(inventory)
     }
 
-    private fun icon(region: Region): ItemStack {
+    private fun icon(region: Region, armed: Boolean): ItemStack {
         val showing = panels.isShowing(region)
         val style = panels.styleFor(region)
         // Pane matching how the region renders, so the menu reads the same as the world.
@@ -122,7 +141,12 @@ internal class RegionBrowser(
             line("<gray>Right <dark_gray>render")
         }
         lore += line("<gray>Shift-left <dark_gray>style")
-        lore += line("<gray>Shift-right <dark_gray>delete")
+        lore += if (armed) {
+            // Plain red, not the soft red used to *start* a delete. This click is the deletion.
+            line("<red>Shift-right again to delete")
+        } else {
+            line("<gray>Shift-right <dark_gray>delete")
+        }
 
         return ItemStack(material).apply {
             editMeta { meta ->
@@ -147,6 +171,10 @@ internal class RegionBrowser(
         val player = event.whoClicked as? Player ?: return
         val slot = event.rawSlot
 
+        // Any click at all disarms. Only the branch below re-arms, so a pending delete never
+        // survives navigating away, styling something, or clicking the same entry a different way.
+        val wasArmed = armed.remove(player.uniqueId)
+
         when (slot) {
             PREV_SLOT -> return open(player, holder.page - 1)
             NEXT_SLOT -> return open(player, holder.page + 1)
@@ -160,10 +188,21 @@ internal class RegionBrowser(
 
         when {
             event.isShiftClick && event.isRightClick -> {
-                // Routed through the existing guarded command rather than deleting here, so the
-                // usage warning and the confirm step are not duplicated in a second code path.
-                player.closeInventory()
-                player.performCommand("parcel delete ${Keys.display(key)}")
+                // Nothing depends on it, so there is nothing to warn about and the confirm would be
+                // friction that teaches people to click through warnings. Same rule the command
+                // follows, kept in step deliberately.
+                val needsConfirm = regions.usagesOf(region).isNotEmpty()
+
+                if (wasArmed == key || !needsConfirm) {
+                    // Still routed through the guarded command, so the snapshot for /parcel restore
+                    // and the unmarking are not duplicated in a second code path.
+                    player.performCommand("parcel delete ${Keys.display(key)} confirm")
+                } else {
+                    // Who uses it is already on the item, so arming just has to say what a second
+                    // click will do.
+                    armed[player.uniqueId] = key
+                }
+                open(player, holder.page)
             }
 
             event.isShiftClick -> {
@@ -185,6 +224,11 @@ internal class RegionBrowser(
                 player.performCommand("parcel goto ${Keys.display(key)}")
             }
         }
+    }
+
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        armed.remove(event.player.uniqueId)
     }
 
     private fun line(raw: String) = mm.deserialize("<!italic>$raw")

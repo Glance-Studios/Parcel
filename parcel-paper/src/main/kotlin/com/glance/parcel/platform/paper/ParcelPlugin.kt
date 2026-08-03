@@ -94,7 +94,10 @@ class ParcelPlugin : JavaPlugin() {
             this,
         )
 
-        styles = StyleStore(File(dataFolder, "styles.yml")).apply { load() }
+        styles = StyleStore(
+            File(dataFolder, "styles.yml"),
+            defaultFollow = config.getBoolean("panels.follow.default", false),
+        ).apply { load() }
 
         displays = Displays(this)
         // Catches anything a previous enable left standing - a plugin reload disables us without
@@ -136,6 +139,7 @@ class ParcelPlugin : JavaPlugin() {
                     green = config.getInt("panels.colour.green", 200).coerceIn(0, 255),
                     blue = config.getInt("panels.colour.blue", 255).coerceIn(0, 255),
                     alpha = config.getInt("panels.colour.alpha", 90).coerceIn(0, 255),
+                    follow = config.getBoolean("panels.follow.default", false),
                 ),
                 thickness = config.getDouble("panels.thickness", 0.02).toFloat(),
                 surfaceOffset = config.getDouble("panels.surface-offset", 0.01),
@@ -169,7 +173,9 @@ class ParcelPlugin : JavaPlugin() {
         val api = ParcelAPIImpl(regions, selections, RenderManagerImpl(panels, regions))
         server.servicesManager.register(ParcelAPI::class.java, api, this, ServicePriority.Normal)
 
-        val styleDialog = PanelStyleDialog(this, styles, panels) { panels.settingsDefaultStyle() }
+        // The SAVED default, not the config's. Anything else and the dialog opens showing values
+        // that are not what regions are actually drawn with.
+        val styleDialog = PanelStyleDialog(this, styles, panels) { panels.defaultStyle() }
 
         val browser = RegionBrowser(this, regions, panels, styleDialog)
         val marking = RegionMarking(panels, wand)

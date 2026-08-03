@@ -45,6 +45,10 @@ panels:
   primitive: TEXT
 
   # ARGB for TEXT panels. Alpha is what makes them see-through.
+  #
+  # This is the STARTING point, not the last word: /parcel style with no region name edits the
+  # default in game and writes it to styles.yml, and once that exists it wins over this. Order is
+  # the region's own style, then the saved default, then here.
   colour:
     red: 85
     green: 200
@@ -88,8 +92,15 @@ panels:
 
   # A flat region's plane can ride under the nearest player instead of sitting at ground level, so
   # its footprint stays readable while you fly rather than being buried in terrain.
-  # Enable per region with the "Follow player height" toggle in /parcel style.
   follow:
+    # Whether new regions follow by default. Per region after that - /parcel follow toggles one,
+    # and the "Follow player height" switch in /parcel style makes it stick.
+    #
+    # Off by default: following is right while you are stood inside looking around, and wrong the
+    # moment you back away to judge the footprint, because the plane comes with you and you can
+    # never see it from outside.
+    default: false
+
     # How close a player must be to the FOOTPRINT (not its centre) for the plane to follow.
     radius: 32.0
 

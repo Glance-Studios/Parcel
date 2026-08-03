@@ -94,6 +94,8 @@ internal class RegionCommands(
         Text.raw(sender, "  <aqua>/parcel show <name><gray> - toggle its outline on or off")
         Text.raw(sender, "  <aqua>/parcel render <name><gray> - toggle solid panels on its surface")
         Text.raw(sender, "  <aqua>/parcel style <name><gray> - colour and opacity, with sliders")
+        Text.raw(sender, "  <aqua>/parcel style<gray> - the same, for the default every region uses")
+        Text.raw(sender, "  <aqua>/parcel render<gray> / <aqua>/parcel hide<gray> - every region in this world, at once")
         Text.raw(sender, "  <aqua>/parcel goto <name><gray> - teleport to it")
         Text.raw(sender, "  <aqua>/parcel reload<gray> - reload config and regions from disk")
         Text.raw(sender, "  <gray>Build a selection with <aqua>/marquee<gray>.")
@@ -218,7 +220,12 @@ internal class RegionCommands(
             return
         }
         if (regions.get(key) != null) {
-            Text.error(player, "${Keys.display(key)} already exists. Use /parcel apply to reshape it.")
+            Text.error(player, "${Keys.display(key)} already exists.")
+            // Both ways to write into it, because which one you want is the actual question here
+            // and the difference is easy to get backwards. Suggested rather than run: this replaces
+            // or edits a region that already exists, so it should reach your chat first.
+            bullet(player, "suggest", "/mq apply ${Keys.display(key)}", "replace its shape with your selection")
+            bullet(player, "suggest", "/mq append ${Keys.display(key)}", "add your selection onto it, carves included")
             return
         }
 
@@ -443,10 +450,10 @@ internal class RegionCommands(
             "<gray>Loaded <aqua>${Keys.display(region.key())}<gray> into your selection " +
                 "(<white>${selection.parts().size}<gray> part(s)).",
         )
-        Text.raw(
-            player,
-            "  <dark_gray>Edit it, then <gray>/parcel apply ${Keys.display(region.key())}<dark_gray> to save.",
-        )
+        // Both ways out, offered where the outline appears. Until this said so, the only mention of
+        // deselect was in the error you get for not having used it.
+        bullet(player, "suggest", "/parcel apply ${Keys.display(region.key())}", "save your edits back")
+        bullet(player, "run", "/mq deselect", "drop the selection and its outline, changing nothing")
     }
 
     @Command("parcel append <name>")
@@ -582,6 +589,18 @@ internal class RegionCommands(
         }
     }
 
+    /**
+     * With no region: edit the style every region inherits.
+     *
+     * Named as the bare command rather than `style default` so it cannot be shadowed by a region
+     * actually called "default", and so the shorter form is the one that reaches more regions.
+     */
+    @Command("parcel style")
+    @Permission(EDIT)
+    fun styleDefault(player: Player) {
+        styleDialog.openDefault(player)
+    }
+
     @Command("parcel style <name>")
     @Permission(EDIT)
     fun style(
@@ -605,6 +624,66 @@ internal class RegionCommands(
         }
         if (panels.isShowing(region)) panels.show(region, viewer = player)
         Text.send(player, "<gray>Cleared the stored style for <aqua>${Keys.display(region.key())}<gray>.")
+    }
+
+    /**
+     * Render every region in the world you are standing in.
+     *
+     * Scoped to your own world rather than the whole server: a region you cannot see is entities
+     * spawned for nobody, and the count in chat would be a lie about what is in front of you.
+     */
+    @Command("parcel render")
+    @Permission(VIEW)
+    fun renderAll(player: Player) {
+        val here = regions.all().filter { it.world() == player.world }
+        if (here.isEmpty()) {
+            Text.error(player, "No regions in ${player.world.name}.")
+            return
+        }
+
+        var shown = 0
+        var panelCount = 0
+        var tooLarge = 0
+        var empty = 0
+        for (region in here) {
+            if (panels.isShowing(region)) continue
+            when (val count = panels.show(region, viewer = player)) {
+                -1 -> tooLarge++
+                0 -> empty++
+                else -> {
+                    shown++
+                    panelCount += count
+                }
+            }
+        }
+
+        if (shown == 0 && tooLarge == 0 && empty == 0) {
+            Text.send(player, "<gray>Everything in <white>${player.world.name}<gray> is already shown.")
+        } else {
+            Text.send(
+                player,
+                "<gray>Rendering <white>$shown<gray> more region(s) as " +
+                    "<white>$panelCount<gray> panel(s).",
+            )
+        }
+        if (tooLarge > 0) Text.raw(player, "  <yellow>$tooLarge too large to render.")
+        if (empty > 0) Text.raw(player, "  <dark_gray>$empty have no shape yet.")
+        Text.raw(
+            player,
+            "  <dark_gray>[<red><click:run_command:'/parcel hide'>Hide all</click><dark_gray>]",
+        )
+    }
+
+    /** Clears the screen in one command, however the renders got there. */
+    @Command("parcel hide")
+    @Permission(VIEW)
+    fun hideAll(player: Player) {
+        val count = panels.hideAll()
+        if (count == 0) {
+            Text.error(player, "Nothing is being rendered.")
+            return
+        }
+        Text.send(player, "<gray>Hid <white>$count<gray> render(s).")
     }
 
     @Command("parcel render <name>")
