@@ -89,7 +89,7 @@ default to.
 | `/parcel show <name>` | `parcel.view` | Toggle a particle outline of its bounds |
 | `/parcel render <name>` | `parcel.view` | Toggle solid panels over its surface |
 | `/parcel render` | `parcel.view` | Render every region in the world you are in |
-| `/parcel hide` | `parcel.view` | Hide every render, panels and wireframes alike |
+| `/parcel hide` | `parcel.view` | Hide everything you are showing - renders and outlines alike. Leaves your selection |
 | `/parcel follow [name]`, `/parcel freeze [name]` | `parcel.edit` | Toggle whether a flat region's plane rides under you |
 | `/parcel style <name>` | `parcel.edit` | Colour, opacity, primitive and plane height, with sliders |
 | `/parcel style` | `parcel.edit` | The same, for the default every region inherits |

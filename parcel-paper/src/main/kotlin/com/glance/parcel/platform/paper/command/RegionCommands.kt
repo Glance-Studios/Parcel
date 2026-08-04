@@ -674,16 +674,34 @@ internal class RegionCommands(
         )
     }
 
-    /** Clears the screen in one command, however the renders got there. */
+    /**
+     * Clears the screen in one command, however anything got onto it.
+     *
+     * Covers outlines as well as renders. They are separate subsystems - /parcel show draws
+     * particles per player, /parcel render spawns entities - but that is an implementation detail,
+     * and a "hide" that leaves half the screen lit is indefensible from the outside.
+     *
+     * Your own selection is left alone. Its outline is not something you asked to show, it is what
+     * tells you a selection exists at all, and hiding it would leave you with working state you
+     * cannot see. /mq deselect is how that goes.
+     */
     @Command("parcel hide")
     @Permission(VIEW)
     fun hideAll(player: Player) {
-        val count = panels.hideAll()
-        if (count == 0) {
-            Text.error(player, "Nothing is being rendered.")
+        val renders = panels.hideAll()
+        val outlined = outlines.watchedBy(player).size
+        outlines.clearWatches(player)
+
+        if (renders == 0 && outlined == 0) {
+            Text.error(player, "Nothing is being shown.")
             return
         }
-        Text.send(player, "<gray>Hid <white>$count<gray> render(s).")
+
+        val what = listOfNotNull(
+            "$renders render(s)".takeIf { renders > 0 },
+            "$outlined outline(s)".takeIf { outlined > 0 },
+        ).joinToString(" and ")
+        Text.send(player, "<gray>Hid <white>$what<gray>.")
     }
 
     @Command("parcel render <name>")
