@@ -11,6 +11,7 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.Action
 import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.plugin.Plugin
 
@@ -37,6 +38,21 @@ internal class MarqueeListener(
     private val selections: SelectionManagerImpl,
     private val debug: Boolean = false,
 ) : Listener {
+
+    /**
+     * Relabel the wand on the way in.
+     *
+     * A mark is in memory only, so a restart drops it - but the wand is a real item and keeps
+     * whatever name it had when the server went down. Rejoining to a tool insisting you are working
+     * on something you are not is worse than a tool that says nothing, because every command that
+     * defaults to the marked region then does something else.
+     *
+     * Also covers the ordinary case of logging back in, where the mark is equally gone.
+     */
+    @EventHandler
+    fun onJoin(event: PlayerJoinEvent) {
+        wand.refresh(event.player)
+    }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     fun onInteract(event: PlayerInteractEvent) {
