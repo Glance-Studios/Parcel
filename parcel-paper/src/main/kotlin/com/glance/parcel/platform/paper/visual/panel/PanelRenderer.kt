@@ -145,7 +145,27 @@ internal class PanelRenderer(
      * region - somebody's admin overlay draped over the map. The particle visualisers were always
      * private simply because `player.spawnParticle` is; entities had to be made so deliberately.
      */
-    private class Render(val displays: List<Display>, val owner: UUID?)
+    private class Render(
+        val displays: List<Display>,
+        val owner: UUID?,
+        /**
+         * The height a cross-section plane was built at, before the style's nudge.
+         *
+         * Null for a volume region, which has no plane to place. Without this, every reshape
+         * recomputed the height from wherever the player happened to be standing, so editing a flat
+         * region moved the plane you were using to judge the edit.
+         */
+        var flatBase: Int?,
+        /**
+         * How far a display sits above the block Y its quad was meshed at.
+         *
+         * Measured at spawn rather than assumed, because TEXT and BLOCK panels place their quads
+         * differently. Follow needs it to move the plane to a height a fresh render would reproduce
+         * exactly - without it, following and re-rendering disagree by this delta and the plane
+         * creeps every time it is redrawn.
+         */
+        val displayOffset: Double,
+    )
 
     private val active = HashMap<NamespacedKey, Render>()
     private var followTask: BukkitTask? = null
@@ -175,10 +195,18 @@ internal class PanelRenderer(
         style: PanelStyle = styleFor(region),
         viewer: Player? = null,
     ): Int {
+        // Captured before hide clears it. A re-render of something already on screen keeps its
+        // plane where it was: reshaping a region is not a request to move the view of it, and
+        // recomputing from the player's position moved the plane mid-edit.
+        val standing = active[region.key()]?.flatBase
+
         hide(region.key())
         if (region.isEmpty()) return 0
 
-        val flatY = flatHeightFor(region, viewer)
+        // The base holds still across a reshape; the nudge is re-read every time, so the style
+        // dialog's height slider still moves the plane the moment it is saved.
+        val base = standing ?: baseHeightFor(region, viewer)
+        val flatY = base + style.heightOffset
         val mesh = runCatching { DisplayMesh.of(region, flatY) }.getOrNull() ?: return -1
         if (mesh.isEmpty()) return 0
         if (mesh.size > settings.maxPanels) return -1
@@ -204,7 +232,12 @@ internal class PanelRenderer(
         }
 
         val owner = viewer?.takeIf { settings.viewerOnly }
-        active[region.key()] = Render(displays, owner?.uniqueId)
+        active[region.key()] = Render(
+            displays,
+            owner?.uniqueId,
+            flatBase = base.takeIf { DisplayMesh.isCrossSection(region) },
+            displayOffset = displays.firstOrNull()?.location?.y?.minus(flatY) ?: 0.0,
+        )
         owner?.let { applyVisibility(displays, it) }
         return displays.size
     }
@@ -315,6 +348,26 @@ internal class PanelRenderer(
     }
 
     /**
+     * Put a plane back where a fresh render would have put it.
+     *
+     * The escape hatch for freezing somewhere useless - flying up, freezing, and finding the plane
+     * stranded above the build you were looking at. Recomputes from the ground rather than from the
+     * viewer, because "back to where it was" means the default, not "under me again".
+     *
+     * @return true if there was a plane to move
+     */
+    fun resetHeight(region: Region): Boolean {
+        val render = active[region.key()] ?: return false
+        if (render.flatBase == null) return false
+        // Ground, explicitly, rather than clearing it and letting show() recompute - that would
+        // fall back to the nearest player, which is where you are stood and so usually exactly the
+        // height you were trying to get away from.
+        render.flatBase = DisplayMesh.groundY(region, settings.flatOffset)
+        show(region)
+        return true
+    }
+
+    /**
      * Redraw everything currently on screen that has no style of its own.
      *
      * For when the saved default changes: those regions are already drawn with the old values baked
@@ -374,7 +427,18 @@ internal class PanelRenderer(
             val style = styleFor(region)
             if (!style.follow || !DisplayMesh.isCrossSection(region)) continue
 
-            val target = targetHeight(region, render, displays.first()) ?: continue
+            val base = targetBase(region, render, displays.first()) ?: continue
+
+            // Built the same way a fresh render builds it: base, plus the style's nudge, plus where
+            // a display sits relative to its block. Following used to aim straight at the player's
+            // height, which ignored the nudge entirely - so the height slider did nothing at all
+            // while follow was on, and the plane came back somewhere else on the next redraw.
+            val target = base + style.heightOffset + render.displayOffset
+
+            // Follow is the plane moving, so where it has moved to IS its position now, stored in
+            // the same units a render is built from rather than reverse engineered from a display.
+            render.flatBase = base
+
             for (display in displays) {
                 val at = display.location
                 // A hair of hysteresis: without it, a player bobbing on a jump re-teleports every
@@ -389,19 +453,23 @@ internal class PanelRenderer(
      * Where a cross-section plane starts: under whoever asked, else under the nearest player in
      * range, else on the ground.
      */
-    private fun flatHeightFor(region: Region, viewer: Player?): Int {
-        // The per-region nudge applies either way - whether the plane is pinned to the ground or
-        // riding under a player, "a bit higher" means the same thing.
-        val nudge = styleFor(region).heightOffset
+    /**
+     * Where a plane sits before the style's own nudge is added.
+     *
+     * Kept separate from the nudge so a re-render can hold the plane still while still honouring a
+     * changed height slider. Storing the combined number instead would either move the plane on
+     * every reshape or make the slider do nothing.
+     */
+    private fun baseHeightFor(region: Region, viewer: Player?): Int {
         if (!DisplayMesh.isCrossSection(region)) {
-            return DisplayMesh.groundY(region, settings.flatOffset) + nudge
+            return DisplayMesh.groundY(region, settings.flatOffset)
         }
 
         val subject = viewer?.takeIf { it.world == region.world() }
             ?: nearestPlayer(region)
-            ?: return DisplayMesh.groundY(region, settings.flatOffset) + nudge
+            ?: return DisplayMesh.groundY(region, settings.flatOffset)
 
-        return Math.floor(subject.location.y - settings.follow.offset).toInt() + nudge
+        return Math.floor(subject.location.y - settings.follow.offset).toInt()
     }
 
     private fun nearestPlayer(region: Region): Player? = plugin.server.onlinePlayers
@@ -409,7 +477,8 @@ internal class PanelRenderer(
         .filter { withinRadius(it.location.x, it.location.z, region.bounds()) }
         .minByOrNull { it.location.y }
 
-    private fun targetHeight(region: Region, render: Render, sample: Display): Double? {
+    /** The block Y a followed plane should be built from, before the style's nudge. */
+    private fun targetBase(region: Region, render: Render, sample: Display): Int? {
         val world = region.world()
 
         // Follow the owner, not whoever happens to be closest. Only the owner can see this render,
@@ -425,7 +494,7 @@ internal class PanelRenderer(
         if (subject.world != world) return null
         if (!withinRadius(subject.location.x, subject.location.z, region.bounds())) return null
 
-        return subject.location.y - settings.follow.offset
+        return Math.floor(subject.location.y - settings.follow.offset).toInt()
     }
 
     private fun withinRadius(x: Double, z: Double, box: BlockBox): Boolean {

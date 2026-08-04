@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.glance.parcel:parcel-api:0.4.0")
+    compileOnly("com.glance.parcel:parcel-api:0.5.0")
 }
 ```
 
@@ -158,6 +158,13 @@ Both particle visualisers therefore draw flat regions as a **footprint at the vi
 following them as they move - the selection outline and the wireframe alike. Membership is
 untouched: a player at Y 200 is still inside a region whose outline is drawn at their feet. Only the
 picture changes.
+
+Solid panels do the same, with one difference: their plane is a real entity, so it has a position
+that persists. `/parcel follow` toggles whether it rides under you, and freezing leaves it exactly
+where following had carried it rather than snapping back - which is the point of freezing. A
+render also holds its plane across a reshape, so editing a region does not move the view you were
+judging the edit against. `/parcel plane reset` drops it back to ground level when it has been left
+somewhere unhelpful.
 
 ## Meshing
 

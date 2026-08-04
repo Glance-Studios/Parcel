@@ -72,7 +72,7 @@ default to.
 | `/parcel` | `parcel.view` | Command summary in chat |
 | `/parcel help`, `/parcel guide` | `parcel.view` | The guide, as a book |
 | `/parcel help more`, `/parcel help shapes` | `parcel.view` | The second book: shapes, meshing, the API |
-| `/parcel menu`, `/parcel browse` | `parcel.view` | Browse regions in a GUI |
+| `/parcel menu`, `/parcel browse` | `parcel.view` | Browse regions in a GUI. Left-click marks a region, flying you there if it is over 100 blocks away; click the marked one again to unmark, or to put its render back if something else hid it |
 | `/parcel list [namespace]` | `parcel.view` | Every region, or one namespace's |
 | `/parcel info <name>` | `parcel.view` | Parts, bounds, world, block count |
 | `/parcel create <name>`, `/parcel save <name>` | `parcel.edit` | Save the selection as a new region |
@@ -90,7 +90,8 @@ default to.
 | `/parcel render <name>` | `parcel.view` | Toggle solid panels over its surface |
 | `/parcel render` | `parcel.view` | Render every region in the world you are in |
 | `/parcel hide` | `parcel.view` | Hide everything you are showing - renders and outlines alike. Leaves your selection |
-| `/parcel follow [name]`, `/parcel freeze [name]` | `parcel.edit` | Toggle whether a flat region's plane rides under you |
+| `/parcel follow [name]`, `/parcel freeze [name]` | `parcel.edit` | Toggle whether a flat region's plane rides under you. Freezing leaves it exactly where it had followed you to |
+| `/parcel plane reset [name]` | `parcel.edit` | Drop a frozen plane back to ground level |
 | `/parcel style <name>` | `parcel.edit` | Colour, opacity, primitive and plane height, with sliders |
 | `/parcel style` | `parcel.edit` | The same, for the default every region inherits |
 | `/parcel style <name> clear` | `parcel.edit` | Drop a region's own style, so it inherits again |

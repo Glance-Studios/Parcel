@@ -6,6 +6,11 @@ import com.glance.parcel.api.selection.Selection
 import com.glance.parcel.platform.paper.DeletedRegions
 import com.glance.parcel.platform.paper.MarkedRegions
 import com.glance.parcel.platform.paper.RegionMarking
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.NamespacedKey
 import com.glance.parcel.platform.paper.region.RegionManagerImpl
 import com.glance.parcel.platform.paper.selection.SelectionManagerImpl
@@ -19,6 +24,7 @@ import org.bukkit.Location
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
+import org.incendo.cloud.annotation.specifier.Greedy
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
@@ -109,6 +115,49 @@ internal class RegionCommands(
     @Command("parcel help|guide more|shapes")
     @Permission(VIEW)
     fun helpShapes(player: Player) = HelpBook.openShapes(player)
+
+    /**
+     * Put a command in the player's chat box, from somewhere that cannot.
+     *
+     * A written book only honours `run_command` - `suggest_command` is silently ignored, so every
+     * book link offering a command you have to finish typing did nothing at all when clicked. A
+     * book cannot reach the chat box, but a command it runs can.
+     *
+     * Greedy, so the whole rest of the line is the command. Written without its leading slash so
+     * the argument cannot be mistaken for a command in its own right.
+     *
+     * The arguments still to be filled in are shown after it in usage syntax, and kept **out** of
+     * the click: pasting `<name>` into the chat box means deleting it before typing the real one,
+     * and it stops tab completion working on the argument it is standing in for.
+     *
+     * They live in [SYNTAX] here rather than being passed in by the caller because a literal
+     * `<name>` inside a MiniMessage click argument is parsed as a tag and never survives the trip.
+     */
+    @Command("parcel type <command>")
+    @Permission(VIEW)
+    fun type(player: Player, @Argument("command") @Greedy command: String) {
+        val bare = command.trim().removePrefix("/")
+        val full = "/$bare"
+
+        // Components rather than MiniMessage, so the angle brackets are text and not tags.
+        var line = Component.text("  ", NamedTextColor.DARK_GRAY).append(
+            Component.text(full, NamedTextColor.AQUA)
+                .decorate(TextDecoration.UNDERLINED)
+                // Trailing space, so the cursor lands where the next argument goes.
+                .clickEvent(ClickEvent.suggestCommand("$full "))
+                .hoverEvent(
+                    HoverEvent.showText(
+                        Component.text("Click to put this in your chat", NamedTextColor.GRAY)
+                    )
+                )
+        )
+        SYNTAX[bare]?.let {
+            // Yellow against the aqua command and the grey around it: the arguments are the part
+            // you still have to supply, so they should not read as prose.
+            line = line.append(Component.text(" $it", NamedTextColor.YELLOW))
+        }
+        player.sendMessage(line)
+    }
 
     @Command("parcel menu|browse")
     @Permission(VIEW)
@@ -835,14 +884,46 @@ internal class RegionCommands(
         styles.set(key, next)
         if (panels.isShowing(region)) panels.show(region, next, viewer = player)
 
-        Text.send(
-            player,
-            if (next.follow) {
-                "<gray>The plane for <aqua>${Keys.display(key)}<gray> follows you again."
-            } else {
-                "<gray>Paused the plane for <aqua>${Keys.display(key)}<gray> where it is."
-            },
-        )
+        if (next.follow) {
+            Text.send(player, "<gray>The plane for <aqua>${Keys.display(key)}<gray> follows you again.")
+            return
+        }
+
+        Text.send(player, "<gray>Left the plane for <aqua>${Keys.display(key)}<gray> where it is.")
+        // It stops where you walked it to, which is the point - but that is easy to leave stranded
+        // over the build you were looking at, so the way back is offered rather than remembered.
+        bullet(player, "run", "/parcel plane reset ${Keys.display(key)}", "drop it back to ground level")
+    }
+
+    /**
+     * Put a flat region's plane back to ground level.
+     *
+     * Freezing leaves the plane exactly where following had carried it, so this is the undo for
+     * having frozen it somewhere unhelpful. Only meaningful while it is rendered - there is nothing
+     * to move otherwise.
+     */
+    @Command("parcel plane reset [name]")
+    @Permission(EDIT)
+    fun planeReset(
+        player: Player,
+        @Argument(value = "name", suggestions = "region-keys") name: String?,
+    ) {
+        val key = name?.let(Keys::parse) ?: MarkedRegions.of(player)
+        if (key == null) {
+            Text.error(player, "No region marked - name one, or mark one first.")
+            return
+        }
+        val region = regions.get(key)
+        if (region == null) {
+            Text.error(player, "${Keys.display(key)} does not exist.")
+            return
+        }
+
+        if (!panels.resetHeight(region)) {
+            Text.error(player, "${Keys.display(key)} has no plane showing to move.")
+            return
+        }
+        Text.send(player, "<gray>Dropped the plane for <aqua>${Keys.display(key)}<gray> to ground level.")
     }
 
     /**
@@ -916,6 +997,25 @@ internal class RegionCommands(
             }
 
     private companion object {
+        /**
+         * What each command the guide links to still needs, in usage syntax.
+         *
+         * `<required>` and `[optional]`, the convention every other command reference uses, so it
+         * reads as a command rather than as a sentence about one. A command absent from here takes
+         * no arguments and is linked to run outright instead.
+         */
+        val SYNTAX = mapOf(
+            "parcel render" to "<name>",
+            "parcel goto" to "<name>",
+            "parcel mark" to "<name>",
+            "parcel undo" to "<name>",
+            "parcel delete" to "<name>",
+            "parcel follow" to "<name>",
+            "parcel style" to "<name>",
+            "mq save" to "<name>",
+            "mq mode" to "<flat|volume>",
+        )
+
         const val VIEW = "parcel.view"
         const val EDIT = "parcel.edit"
         const val ADMIN = "parcel.admin"

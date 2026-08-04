@@ -40,6 +40,10 @@ internal object HelpBook {
 
     private val mm: MiniMessage = MiniMessage.miniMessage()
 
+    /** Exposed for the page-budget test - a page that overflows loses its tail silently. */
+    internal val BOOKS: List<Pair<String, List<String>>>
+        get() = listOf("Parcel" to EVERYDAY, "Parcel - Shapes" to SHAPES)
+
     private val EVERYDAY: List<String> = listOf(
 
         // ------------------------------------------------------------------ everyday
@@ -47,17 +51,14 @@ internal object HelpBook {
         """
         <dark_gray><b>PARCEL</b>
 
-        <reset>Regions of any shape,
-        drawn in game.
+        <reset>Regions of any
+        shape, drawn in
+        game.
 
-        <dark_gray>Mark two corners, add
-        the box, save it. Other
-        plugins then bind to
-        the region by name.
-
-        <dark_gray>The next few pages are
-        all you need day to
-        day.
+        <dark_gray>Mark two corners,
+        add the box, save
+        it. Plugins bind to
+        it by name.
         """.trimIndent(),
 
         // 2 - the wand
@@ -81,7 +82,7 @@ internal object HelpBook {
         """
         <dark_gray><b>FLAT vs VOLUME</b>
 
-        <reset><click:suggest_command:'/mq mode '><u>/mq mode</u></click>
+        <reset><click:run_command:'/parcel type mq mode'><u>/mq mode</u></click>
 
         <dark_green>Flat<dark_gray> ignores Y. The
         region spans the whole
@@ -112,7 +113,7 @@ internal object HelpBook {
         """
         <dark_gray><b>SAVING</b>
 
-        <reset><click:suggest_command:'/mq save '><u>/mq save name</u></click>
+        <reset><click:run_command:'/parcel type mq save'><u>/mq save name</u></click>
 
         <dark_gray>Keeps it as a region
         and clears your
@@ -132,35 +133,29 @@ internal object HelpBook {
         <dark_gray>every region, with
         click actions.
 
-        <reset><click:suggest_command:'/parcel render '><u>render name</u></click>
+        <reset><click:run_command:'/parcel type parcel render'><u>render name</u></click>
         <dark_gray>draw it
-        <reset><click:suggest_command:'/parcel goto '><u>goto name</u></click>
+        <reset><click:run_command:'/parcel type parcel goto'><u>goto name</u></click>
         <dark_gray>fly to it
-        <reset><click:suggest_command:'/parcel undo '><u>undo name</u></click>
-        <dark_gray>put it back
-
-        <reset><click:suggest_command:'/parcel mark '><u>mark name</u></click>
-        <dark_gray>work on it again
+        <reset><click:run_command:'/parcel type parcel mark'><u>mark name</u></click>
+        <dark_gray>work on it
         <reset><click:run_command:'/parcel unmark'><u>unmark</u></click>
         <dark_gray>stop, and hide it
-        <dark_gray>(or <reset>/mq clear<dark_gray>)
         """.trimIndent(),
 
         // 7 - the way on
         """
         <dark_gray><b>MORE</b>
 
-        <reset>That is the daily job.
+        <reset>That is the daily
+        job.
 
-        <dark_gray>There is a second book
-        for shapes that are not
-        just a box - carving,
-        reshaping a saved
-        region, colours, and
-        why a flat region looks
-        the way it does.
+        <dark_gray>Book two covers
+        carving, reshaping,
+        colours, and flat
+        regions.
 
-        <reset><click:run_command:'/parcel help more'><u>Open it</u></click>
+        <reset><click:run_command:'/parcel help more'><u>Click to open</u></click>
         """.trimIndent(),
     )
 
@@ -176,7 +171,8 @@ internal object HelpBook {
         for changing ones you
         already saved.
 
-        <reset><click:run_command:'/parcel help'><u>Back to the basics</u></click>
+        <reset><click:run_command:'/parcel help'><u>Click to go back</u></click>
+        <dark_gray>to the basics
         """.trimIndent(),
 
         // 8 - why parts
@@ -184,33 +180,31 @@ internal object HelpBook {
         <dark_gray><b>WHY PARTS</b>
 
         <reset>A region is not one
-        shape. It is a list of
-        parts, each either
+        shape. It is a list
+        of parts, each
         <dark_green>added<dark_gray> or <dark_red>carved<dark_gray>,
-        applied in order.
+        in order.
 
-        <dark_gray>Because order is kept,
-        nothing is destroyed.
-        Carve a hole, then add
-        something back inside
-        it. Later wins.
+        <dark_gray>Order is kept, so
+        nothing is lost.
+        Later wins.
         """.trimIndent(),
 
         // 9 - the three verbs
         """
         <dark_gray><b>CHANGING ONE</b>
 
-        <reset>Three different things:
+        <reset>Three things:
 
         <dark_green>append<dark_gray> adds your
-        selection to it. Carve
-        into a region this way.
+        selection to it.
+        Carve this way.
 
-        <dark_red>apply<dark_gray> REPLACES its
-        shape entirely.
+        <dark_red>apply<dark_gray> REPLACES
+        its shape.
 
-        <dark_aqua>load<dark_gray> copies it into
-        your selection.
+        <dark_aqua>load<dark_gray> copies it
+        into your selection.
         """.trimIndent(),
 
         // 10 - the round trip
@@ -221,41 +215,43 @@ internal object HelpBook {
 
         <dark_gray>Loading copies a
         region in so you can
-        see and change it,
-        then apply saves it
-        back.
+        change it. Apply
+        saves it back.
 
-        Loading locks nothing.
-        Walk away and the
-        region is untouched.
+        Loading locks
+        nothing.
         """.trimIndent(),
 
         // 11 - undo
         """
         <dark_gray><b>IF IT GOES WRONG</b>
 
-        <reset><click:suggest_command:'/mq undo'><u>/mq undo</u></click>
-        <dark_gray>drops the last part of
-        your selection.
+        <reset><click:run_command:'/mq undo'><u>/mq undo</u></click>
+        <dark_gray>drops the last part
+        of your selection.
 
         <reset><click:run_command:'/mq deselect'><u>/mq deselect</u></click>
         <dark_gray>throws the whole
-        selection away and
-        starts over.
+        selection away.
 
-        <reset><click:suggest_command:'/parcel undo '><u>/parcel undo name</u></click>
-        <dark_gray>reverts a saved region
-        to how it was. Ten
-        steps, kept on disk.
+        <reset><click:run_command:'/parcel type parcel undo'><u>parcel undo name</u></click>
+        <dark_gray>reverts a saved
+        region. Ten steps,
+        kept on disk.
+        """.trimIndent(),
 
-        <reset><click:suggest_command:'/parcel delete '><u>delete name</u></click>
-        <dark_gray>removes it. Asks first
-        only if something is
-        using it.
+        // 6 - deleting
+        """
+        <dark_gray><b>DELETING</b>
+
+        <reset><click:run_command:'/parcel type parcel delete'><u>delete name</u></click>
+        <dark_gray>removes it. Asks
+        first only if
+        something uses it.
 
         <reset><click:run_command:'/parcel restore'><u>/parcel restore</u></click>
-        <dark_gray>puts the last deleted
-        one back. One step,
+        <dark_gray>puts the last one
+        back. One step, and
         lost on restart.
         """.trimIndent(),
 
@@ -263,17 +259,16 @@ internal object HelpBook {
         """
         <dark_gray><b>RENDERING</b>
 
-        <reset><click:suggest_command:'/parcel render '><u>/parcel render name</u></click>
+        <reset><click:run_command:'/parcel type parcel render'><u>/parcel render name</u></click>
 
-        <dark_gray>Draws its surface as
-        solid panels. Touching
-        regions merge into one
-        shape, with no wall
-        between them.
+        <dark_gray>Draws its surface
+        as solid panels.
+        Touching regions
+        merge into one.
 
         <reset><click:run_command:'/parcel render'><u>/parcel render</u></click>
-        <dark_gray>alone draws every
-        region here.
+        <dark_gray>draws every region
+        here.
         <reset><click:run_command:'/parcel hide'><u>/parcel hide</u></click>
         <dark_gray>clears them.
         """.trimIndent(),
@@ -282,29 +277,25 @@ internal object HelpBook {
         """
         <dark_gray><b>FLAT REGIONS</b>
 
-        <reset>A flat region reaches
-        from bedrock to sky, so
-        drawing it truthfully
+        <reset>A flat region runs
+        bedrock to sky, so
+        drawing it truly
         would bury you.
 
-        <dark_gray>Instead you get one
-        plane at your feet,
-        following you as you
-        move. It shows the
+        <dark_gray>You get one plane
+        at your feet. The
         footprint, not the
         real extent.
 
-        <reset><click:suggest_command:'/parcel follow '><u>follow name</u></click>
-        <dark_gray>pins it where it is,
-        so you can back off
-        and look at it.
+        <reset><click:run_command:'/parcel type parcel follow'><u>follow name</u></click>
+        <dark_gray>stops it.
         """.trimIndent(),
 
         // 14 - style
         """
         <dark_gray><b>COLOUR</b>
 
-        <reset><click:suggest_command:'/parcel style '><u>/parcel style name</u></click>
+        <reset><click:run_command:'/parcel type parcel style'><u>/parcel style name</u></click>
 
         <dark_gray>Sliders for colour
         and opacity.
@@ -322,14 +313,14 @@ internal object HelpBook {
         """
         <dark_gray><b>SHARED</b>
 
-        <reset>One region can be used
-        by several plugins at
-        once.
+        <reset>One region can be
+        used by several
+        plugins at once.
 
-        <dark_gray>Editing it changes it
-        for all of them. That
-        is the point - the
-        shape is defined once.
+        <dark_gray>Editing it changes
+        it for all. The
+        shape is defined
+        once.
 
         <reset><click:run_command:'/parcel menu'><u>/parcel menu</u></click>
         <dark_gray>shows who uses what.
@@ -348,7 +339,7 @@ internal object HelpBook {
         <reset><click:run_command:'/parcel menu'><u>/parcel menu</u></click>
         <dark_gray>browse every region
 
-        <reset><click:suggest_command:'/parcel goto '><u>/parcel goto</u></click>
+        <reset><click:run_command:'/parcel type parcel goto'><u>/parcel goto</u></click>
         <dark_gray>fly to one
         """.trimIndent(),
     )

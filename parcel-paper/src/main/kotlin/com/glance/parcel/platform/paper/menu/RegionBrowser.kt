@@ -3,6 +3,7 @@ package com.glance.parcel.platform.paper.menu
 import com.glance.parcel.api.region.Region
 import com.glance.parcel.api.region.RegionManager
 import com.glance.parcel.platform.paper.command.Keys
+import com.glance.parcel.platform.paper.MarkedRegions
 import com.glance.parcel.platform.paper.command.Text
 import com.glance.parcel.platform.paper.visual.panel.GlassPalette
 import com.glance.parcel.platform.paper.visual.panel.PanelRenderer
@@ -89,8 +90,13 @@ internal class RegionBrowser(
         holder.view = inventory
 
         val pending = armed[player.uniqueId]
+        // Read on every open and every refresh, so the menu always agrees with what the wand says.
+        val marked = MarkedRegions.of(player)
         shown.forEachIndexed { index, region ->
-            inventory.setItem(index, icon(region, armed = region.key() == pending))
+            inventory.setItem(
+                index,
+                icon(region, armed = region.key() == pending, marked = region.key() == marked),
+            )
         }
 
         if (clamped > 0) inventory.setItem(PREV_SLOT, nav("<gray>Previous page"))
@@ -99,7 +105,7 @@ internal class RegionBrowser(
         player.openInventory(inventory)
     }
 
-    private fun icon(region: Region, armed: Boolean): ItemStack {
+    private fun icon(region: Region, armed: Boolean, marked: Boolean): ItemStack {
         val showing = panels.isShowing(region)
         val style = panels.styleFor(region)
         // Pane matching how the region renders, so the menu reads the same as the world.
@@ -132,7 +138,14 @@ internal class RegionBrowser(
         }
 
         lore += Component.empty()
-        lore += line("<gray>Left <dark_gray>teleport")
+        // Marked but not drawn is a real state - something else, usually Motif, hid it out from
+        // under the mark. The click that gets it back has to be the one offered, or the entry sends
+        // you to unmark the very thing you are trying to see.
+        lore += when {
+            marked && showing -> line("<gray>Left <dark_gray>unmark it")
+            marked -> line("<gray>Left <color:#e57373>show it again")
+            else -> line("<gray>Left <dark_gray>mark it")
+        }
         // Soft red rather than the usual grey: this is the one entry whose action changes meaning
         // depending on state, so it should not read identically in both.
         lore += if (showing) {
@@ -150,7 +163,14 @@ internal class RegionBrowser(
 
         return ItemStack(material).apply {
             editMeta { meta ->
-                meta.displayName(mm.deserialize("<!italic><aqua>${Keys.display(region.key())}"))
+                // Bold, and on the name rather than in the lore: which region you are working on
+                // has to be answerable from the grid without reading anything.
+                val label = if (marked) {
+                    "<aqua>${Keys.display(region.key())} <green><b>Marked</b>"
+                } else {
+                    "<aqua>${Keys.display(region.key())}"
+                }
+                meta.displayName(mm.deserialize("<!italic>$label"))
                 meta.lore(lore)
                 // Glint marks what is currently drawn in the world, so a glance at the menu
                 // answers "what have I got showing" without reading every entry's lore.
@@ -220,8 +240,30 @@ internal class RegionBrowser(
             }
 
             else -> {
-                player.closeInventory()
-                player.performCommand("parcel goto ${Keys.display(key)}")
+                // Marking is what you almost always came here for - every other command then
+                // defaults to it. A second click lets go of it again, so the same button both
+                // takes and releases and there is no separate screen for the other half.
+                // Unmark only when it is marked AND actually on screen. Marked but hidden means
+                // something took the render away, and mark() re-renders unconditionally - so
+                // falling through re-asserts the state rather than throwing the mark away too.
+                if (MarkedRegions.of(player) == key && panels.isShowing(region)) {
+                    player.performCommand("parcel unmark")
+                    open(player, holder.page)
+                    return
+                }
+
+                // Teleporting was the old behaviour and is now a consequence rather than the
+                // action: if it is too far away to look at, marking it alone is useless.
+                val far = region.world() != player.world || distanceTo(region, player) > GOTO_RANGE
+                player.performCommand("parcel mark ${Keys.display(key)}")
+
+                if (far) {
+                    player.closeInventory()
+                    player.performCommand("parcel goto ${Keys.display(key)}")
+                } else {
+                    // Still on screen, so redraw - the name and the glint both just changed.
+                    open(player, holder.page)
+                }
             }
         }
     }
@@ -229,6 +271,20 @@ internal class RegionBrowser(
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
         armed.remove(event.player.uniqueId)
+    }
+
+    /**
+     * Horizontal distance to the region's nearest edge, not to its centre.
+     *
+     * Centre distance would call a large region "far away" while you were stood inside it, and
+     * teleport you out of the thing you were already looking at.
+     */
+    private fun distanceTo(region: Region, player: Player): Double {
+        val box = region.bounds()
+        val at = player.location
+        val dx = maxOf(box.min().x() - at.x, 0.0, at.x - (box.max().x() + 1.0))
+        val dz = maxOf(box.min().z() - at.z, 0.0, at.z - (box.max().z() + 1.0))
+        return kotlin.math.sqrt(dx * dx + dz * dz)
     }
 
     private fun line(raw: String) = mm.deserialize("<!italic>$raw")
@@ -239,5 +295,13 @@ internal class RegionBrowser(
         const val PER_PAGE = 45
         const val PREV_SLOT = 48
         const val NEXT_SLOT = 50
+
+        /**
+         * Past this many blocks from the region's edge, marking also flies you there.
+         *
+         * Far enough that it never fires while you are working near something, close enough that
+         * marking a region you cannot see does not leave you looking at nothing.
+         */
+        const val GOTO_RANGE = 100.0
     }
 }
